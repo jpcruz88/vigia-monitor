@@ -41,7 +41,7 @@ func valorPrevioSeConservaComoViejo() async throws {
 
     // Solo tiene sentido si la primera lectura funcionó.
     if primero.value != nil {
-        await motor.markPeripheralsFailed(reason: "prueba")
+        await motor.markFailed(.peripherals, reason: "prueba")
         let segundo = await motor.snapshot.peripherals
         #expect(segundo.value != nil, "debe conservar el valor anterior")
         if case .stale = segundo {} else {
@@ -95,6 +95,33 @@ func cpuTrasDespertarNoEsFresca() async throws {
     if case .ok = await motor.snapshot.cpu {
         Issue.record("la CPU de antes de dormir se publicó como fresca")
     }
+}
+
+@Test("Un valor ya viejo conserva su sello de antigüedad")
+func selloDeAntiguedadNoSeRenueva() async throws {
+    let motor = MetricsEngine(
+        memory: MemorySampler(), cpu: CPUSampler(), gpu: GPUSampler(),
+        disk: DiskSampler(), peripherals: PeripheralSampler()
+    )
+    await motor.refreshDisk()
+    guard case .ok = await motor.snapshot.disk else {
+        Issue.record("se esperaba una lectura de disco válida")
+        return
+    }
+
+    await motor.markFailed(.disk, reason: "primera caída")
+    guard case .stale(_, let primerSello) = await motor.snapshot.disk else {
+        Issue.record("se esperaba el estado viejo")
+        return
+    }
+
+    try await Task.sleep(for: .milliseconds(50))
+    await motor.markFailed(.disk, reason: "segunda caída")
+    guard case .stale(_, let segundoSello) = await motor.snapshot.disk else {
+        Issue.record("se esperaba seguir en estado viejo")
+        return
+    }
+    #expect(primerSello == segundoSello, "el sello se renovó y miente sobre la antigüedad")
 }
 
 @Test("El motor puede marcar el puntero como no disponible")

@@ -49,6 +49,9 @@ public actor MetricsEngine {
     }
 
     private func degrade<T>(_ estado: inout MetricState<T>, reason: String) {
+        // Un valor ya marcado como viejo conserva su sello original: volver a
+        // sellarlo lo haría parecer recién degradado para siempre.
+        if case .stale = estado { return }
         if let previo = estado.value {
             estado = .stale(previo, since: Date())
         } else {
@@ -98,9 +101,22 @@ public actor MetricsEngine {
         snapshot.pointer = .unavailable(reason: reason)
     }
 
-    /// Expuesto para las pruebas de degradación.
-    public func markPeripheralsFailed(reason: String) {
-        degrade(&snapshot.peripherals, reason: reason)
+    /// Una métrica cualquiera del snapshot, para nombrarla desde fuera.
+    public enum Metric: Sendable {
+        case memory, cpu, gpu, disk, peripherals
+    }
+
+    /// Expuesto para las pruebas de degradación. Un único punto de entrada en
+    /// vez de un método por métrica: cada estado es de un tipo distinto, así
+    /// que lo genérico tiene que ser el nombre de la métrica, no el valor.
+    public func markFailed(_ metric: Metric, reason: String) {
+        switch metric {
+        case .memory: degrade(&snapshot.memory, reason: reason)
+        case .cpu: degrade(&snapshot.cpu, reason: reason)
+        case .gpu: degrade(&snapshot.gpu, reason: reason)
+        case .disk: degrade(&snapshot.disk, reason: reason)
+        case .peripherals: degrade(&snapshot.peripherals, reason: reason)
+        }
     }
 
     /// Descarta el estado acumulado. Se llama al despertar del sueño: sin
