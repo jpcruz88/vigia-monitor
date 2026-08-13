@@ -74,6 +74,29 @@ func perifericosLentosNoBloqueanElSnapshot() async throws {
     _ = await lento.value
 }
 
+@Test("Al despertar del sueño la CPU no se publica como fresca")
+func cpuTrasDespertarNoEsFresca() async throws {
+    let motor = MetricsEngine(
+        memory: MemorySampler(), cpu: CPUSampler(), gpu: GPUSampler(),
+        disk: DiskSampler(), peripherals: PeripheralSampler()
+    )
+    // Dos refrescos para que la CPU tenga con qué comparar.
+    await motor.refreshFast()
+    await motor.refreshFast()
+    guard case .ok = await motor.snapshot.cpu else {
+        Issue.record("se esperaba una lectura de CPU válida")
+        return
+    }
+
+    // Despertar del sueño descarta los contadores.
+    await motor.resetAccumulators()
+    await motor.refreshFast()
+
+    if case .ok = await motor.snapshot.cpu {
+        Issue.record("la CPU de antes de dormir se publicó como fresca")
+    }
+}
+
 @Test("El motor puede marcar el puntero como no disponible")
 func punteroSeMarcaNoDisponible() async throws {
     let motor = MetricsEngine(

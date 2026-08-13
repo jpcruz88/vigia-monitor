@@ -35,9 +35,14 @@ public actor MetricsEngine {
         do {
             if let valor = try leer() {
                 estado = .ok(valor)
+            } else if estado.value != nil {
+                // "Aún no hay dato" pero sí había uno antes: es el caso de
+                // despertar del sueño, donde los contadores se descartaron.
+                // Seguir publicándolo como fresco mostraría la CPU de antes
+                // de dormir con marca de tiempo de ahora.
+                degrade(&estado, reason: "esperando una nueva muestra")
             }
-            // Un nil no es un fallo: significa "aún no hay dato", como la
-            // primera muestra de CPU. Se deja el estado como está.
+            // Sin valor previo es el arranque: se deja en `unavailable`.
         } catch {
             degrade(&estado, reason: String(describing: error))
         }
