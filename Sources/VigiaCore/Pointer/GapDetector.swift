@@ -39,6 +39,9 @@ public final class GapDetector {
     public static let windowSeconds: Double = 60.0
     /// Intervalo supuesto mientras no hay datos suficientes (125 Hz).
     public static let bootstrapInterval: Double = 0.008
+    /// Por encima de este hueco se considera pausa humana, no pérdida de señal.
+    /// Una pérdida real del dongle dura decenas o pocos cientos de milisegundos.
+    public static let humanPauseThreshold: Double = 0.5
 
     private let declaredInterval: Double?
     private var observedIntervals: [Double] = []
@@ -63,6 +66,11 @@ public final class GapDetector {
         guard let previo = last else { return }
         let hueco = report.timestamp - previo.timestamp
         guard hueco > 0 else { return }
+
+        // Solo cuenta si ocurre en medio de movimiento continuo.
+        guard previo.moved, report.moved else { return }
+        // Un hueco enorme es el usuario soltando el mouse, no el dongle fallando.
+        guard hueco < Self.humanPauseThreshold else { return }
 
         if hueco > expectedIntervalSeconds * Self.gapMultiplier {
             faults.append((at: report.timestamp, gap: hueco))

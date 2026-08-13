@@ -57,3 +57,27 @@ func fallosExpiranDeLaVentana() {
     // Ya pasó más de un minuto desde el fallo.
     #expect(detector.health(now: 61.0).faults == 0)
 }
+
+@Test("Diez segundos de reposo no cuentan como fallo")
+func reposoNoEsFallo() {
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    for reporte in flujoRegular(intervalo: 0.001, cantidad: 100) {
+        detector.record(reporte)
+    }
+    // El usuario suelta el mouse y vuelve diez segundos después.
+    detector.record(PointerReport(timestamp: 10.0, moved: true))
+    for reporte in flujoRegular(intervalo: 0.001, cantidad: 100, desde: 10.001) {
+        detector.record(reporte)
+    }
+    #expect(detector.health(now: 10.2).faults == 0)
+}
+
+@Test("Un hueco tras un reporte sin movimiento no cuenta como fallo")
+func huecoTrasReposoNoEsFallo() {
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    detector.record(PointerReport(timestamp: 0, moved: true))
+    // Un reporte sin desplazamiento, por ejemplo el de soltar un botón.
+    detector.record(PointerReport(timestamp: 0.001, moved: false))
+    detector.record(PointerReport(timestamp: 0.081, moved: true))
+    #expect(detector.health(now: 0.1).faults == 0)
+}
