@@ -11,3 +11,11 @@ func memoriaCoherente() throws {
     #expect(metricas.swapUsedBytes <= metricas.swapTotalBytes)
     #expect(metricas.usedFraction >= 0 && metricas.usedFraction <= 1)
 }
+
+@Test("DiskSampler concuerda con el tamaño real del volumen")
+func discoCoherente() throws {
+    let metricas = try DiskSampler().sample()
+    #expect(metricas.totalBytes > 10_000_000_000)
+    #expect(metricas.freeBytes <= metricas.totalBytes)
+    #expect(metricas.usedFraction >= 0 && metricas.usedFraction <= 1)
+}
