@@ -11,7 +11,7 @@ import VigiaCore
 @MainActor
 final class HUDModel: ObservableObject {
     @Published private(set) var snapshot: SystemSnapshot = .empty
-    @Published private(set) var pointerPermissionDenied = false
+    @Published private(set) var pointerStage: PointerPermissionGate.Stage = .measuring
 
     private let engine = MetricsEngine(
         memory: MemorySampler(),
@@ -21,6 +21,7 @@ final class HUDModel: ObservableObject {
         peripherals: PeripheralSampler()
     )
     private let pointer = PointerHealthMonitor()
+    private var gate = PointerPermissionGate(started: true)
     private var tareas: [Task<Void, Never>] = []
 
     /// Última salud recibida del mouse y cuándo llegó. Sirven para detectar el
@@ -107,22 +108,47 @@ final class HUDModel: ObservableObject {
             }
         }
 
-        if !pointer.start() {
-            pointerPermissionDenied = true
+        gate = PointerPermissionGate(started: pointer.start())
+        pointerStage = gate.stage
+        if gate.stage != .measuring {
             Task { [engine] in
                 await engine.markPointerUnavailable(reason: "permiso requerido")
             }
         }
     }
 
-    /// Si el usuario concede el permiso en Ajustes del Sistema, la app debe
-    /// enterarse sola. Obligarle a reiniciarla justo después de hacer lo que le
-    /// pedimos sería una mala experiencia, y además parecería que no funcionó.
-    private func reintentarSiSeConcedioElPermiso() {
-        guard pointerPermissionDenied else { return }
-        guard PointerHealthMonitor.access == .granted else { return }
-        if pointer.start() {
-            pointerPermissionDenied = false
+    /// Vigila si el usuario concedió el permiso mientras la app corría.
+    ///
+    /// Aquí *no* se reintenta `pointer.start()`, aunque sea tentador: macOS no
+    /// aplica el permiso a un proceso ya en marcha, así que un reintento
+    /// arrancaría sin error y no llegaría ni un evento. Ver
+    /// `PointerPermissionGate` para el razonamiento completo.
+    private func revisarPermiso() {
+        let anterior = gate.stage
+        gate.refresh(access: PointerHealthMonitor.access)
+        guard gate.stage != anterior else { return }
+
+        pointerStage = gate.stage
+        Task { [engine] in
+            await engine.markPointerUnavailable(reason: "reinicia Vigía")
+        }
+    }
+
+    /// Relanza la aplicación: lo único que hace que macOS entregue eventos HID
+    /// después de conceder el permiso.
+    ///
+    /// La instancia nueva se pide *antes* de terminar esta, y la salida ocurre
+    /// en la respuesta. Al revés —terminar y confiar en que algo nos reabra— no
+    /// hay nadie que lo haga, y `createsNewApplicationInstance` es obligatorio
+    /// porque si no macOS se limita a activar la instancia que todavía vive.
+    func restartApp() {
+        let configuracion = NSWorkspace.OpenConfiguration()
+        configuracion.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuracion
+        ) { _, _ in
+            Task { @MainActor in NSApp.terminate(nil) }
         }
     }
 
@@ -174,7 +200,7 @@ final class HUDModel: ObservableObject {
         Task { [weak self] in
             while !Task.isCancelled {
                 await trabajo()
-                await self?.reintentarSiSeConcedioElPermiso()
+                self?.revisarPermiso()
                 await self?.caducarSaludDelMouse()
                 await self?.publicar()
                 try? await Task.sleep(for: intervalo)

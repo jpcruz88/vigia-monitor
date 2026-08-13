@@ -120,7 +120,8 @@ struct HUDView: View {
     @ViewBuilder
     private var perifericos: some View {
         if settings.isVisible(.pointer) {
-            if model.pointerPermissionDenied {
+            switch model.pointerStage {
+            case .needsGrant:
                 Button {
                     model.openInputMonitoringSettings()
                 } label: {
@@ -128,7 +129,18 @@ struct HUDView: View {
                         .font(.system(size: 10))
                 }
                 .buttonStyle(.link)
-            } else {
+            case .needsRestart:
+                // macOS solo entrega eventos HID a un proceso arrancado ya con
+                // el permiso, así que este botón no es una comodidad: es el
+                // único camino desde aquí.
+                Button {
+                    model.restartApp()
+                } label: {
+                    Label("Reiniciar para medir el mouse", systemImage: "arrow.clockwise")
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(.link)
+            case .measuring:
                 filaPeriferico(
                     "Mouse",
                     valor: textoDelMouse,

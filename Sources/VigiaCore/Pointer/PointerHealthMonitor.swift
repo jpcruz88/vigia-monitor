@@ -42,7 +42,7 @@ public final class PointerHealthMonitor: @unchecked Sendable {
     public init() {}
 
     /// Estado del permiso de Monitoreo de Entrada.
-    public enum Access: Sendable {
+    public enum Access: Sendable, Equatable {
         case granted
         case denied
         /// Nunca se ha preguntado, así que la app todavía no aparece en la
