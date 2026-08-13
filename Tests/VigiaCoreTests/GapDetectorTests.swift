@@ -54,11 +54,16 @@ func huecoCuentaComoFallo() {
 @Test("Los fallos salen de la ventana móvil al pasar 60 segundos")
 func fallosExpiranDeLaVentana() {
     let detector = GapDetector(declaredIntervalSeconds: 0.001)
-    detector.record(PointerReport(timestamp: 0, moved: true))
-    detector.record(PointerReport(timestamp: 0.080, moved: true))
-    #expect(detector.health(now: 0.1).faults == 1)
+    // Calibrar primero: sin muestras propias no se cuenta ningún fallo.
+    let regulares = flujoRegular(intervalo: 0.001, cantidad: 30)
+    for reporte in regulares {
+        detector.record(reporte)
+    }
+    let fallo = regulares.last!.timestamp + 0.080
+    detector.record(PointerReport(timestamp: fallo, moved: true))
+    #expect(detector.health(now: fallo + 0.02).faults == 1)
     // Ya pasó más de un minuto desde el fallo.
-    #expect(detector.health(now: 61.0).faults == 0)
+    #expect(detector.health(now: fallo + 61.0).faults == 0)
 }
 
 @Test("Diez segundos de reposo no cuentan como fallo")
@@ -78,11 +83,17 @@ func reposoNoEsFallo() {
 @Test("Un hueco tras un reporte sin movimiento no cuenta como fallo")
 func huecoTrasReposoNoEsFallo() {
     let detector = GapDetector(declaredIntervalSeconds: 0.001)
-    detector.record(PointerReport(timestamp: 0, moved: true))
+    // Calibrar primero, para que la prueba ejercite de verdad la guarda de
+    // movimiento y no pase solo porque el detector aún no juzga nada.
+    let regulares = flujoRegular(intervalo: 0.001, cantidad: 30)
+    for reporte in regulares {
+        detector.record(reporte)
+    }
+    let ultimo = regulares.last!.timestamp
     // Un reporte sin desplazamiento, por ejemplo el de soltar un botón.
-    detector.record(PointerReport(timestamp: 0.001, moved: false))
-    detector.record(PointerReport(timestamp: 0.081, moved: true))
-    #expect(detector.health(now: 0.1).faults == 0)
+    detector.record(PointerReport(timestamp: ultimo + 0.001, moved: false))
+    detector.record(PointerReport(timestamp: ultimo + 0.081, moved: true))
+    #expect(detector.health(now: ultimo + 0.2).faults == 0)
 }
 
 @Test("Sin intervalo declarado, una ráfaga inicial no ancla el estimador")
@@ -134,23 +145,27 @@ func intervaloDeclaradoQueMiente() {
     for reporte in flujoRegular(intervalo: 0.008, cantidad: 200) {
         detector.record(reporte)
     }
-    // Los primeros reportes sí se cuentan como fallo, porque solo se
-    // dispone del dato declarado. Lo que no puede pasar es que siga
-    // contándolos indefinidamente una vez hay muestras propias.
+    // No hay ni un fallo: el detector no juzga nada hasta estar calibrado, y
+    // en cuanto lo está manda la mediana observada, no el dato declarado.
     let salud = detector.health(now: 2.0)
-    #expect(salud.faults < 30, "se esperaban fallos solo durante la calibración, hubo \(salud.faults)")
+    #expect(salud.faults == 0, "el dato declarado no debe producir fallos, hubo \(salud.faults)")
     #expect(abs(salud.expectedIntervalSeconds - 0.008) < 0.0005)
 }
 
 @Test("Reiniciar deja el detector como recién creado")
 func reiniciarDejaEstadoLimpio() {
     let detector = GapDetector(declaredIntervalSeconds: 0.001)
-    detector.record(PointerReport(timestamp: 0, moved: true))
-    detector.record(PointerReport(timestamp: 0.080, moved: true))
-    #expect(detector.health(now: 0.1).faults == 1)
+    // Calibrar primero: sin muestras propias no se cuenta ningún fallo.
+    let regulares = flujoRegular(intervalo: 0.001, cantidad: 30)
+    for reporte in regulares {
+        detector.record(reporte)
+    }
+    let fallo = regulares.last!.timestamp + 0.080
+    detector.record(PointerReport(timestamp: fallo, moved: true))
+    #expect(detector.health(now: fallo + 0.02).faults == 1)
 
     detector.reset()
-    #expect(detector.health(now: 0.1).faults == 0)
+    #expect(detector.health(now: fallo + 0.02).faults == 0)
     // Tras reiniciar no debe medirse un hueco a caballo del corte.
     detector.record(PointerReport(timestamp: 100.0, moved: true))
     #expect(detector.health(now: 100.1).faults == 0)
@@ -158,21 +173,51 @@ func reiniciarDejaEstadoLimpio() {
 
 @Test("El umbral del multiplicador se aplica de forma estricta")
 func umbralDelMultiplicadorEsEstricto() {
-    // Con 1 ms declarado, el umbral es exactamente 4 ms.
+    // Con un flujo de 1 ms la mediana observada vale 1 ms, igual que el dato
+    // declarado, así que el umbral es exactamente 4 ms.
+    let calibracion = flujoRegular(intervalo: 0.001, cantidad: 30)
+    let ultimo = calibracion.last!.timestamp
+
     let justo = GapDetector(declaredIntervalSeconds: 0.001)
-    justo.record(PointerReport(timestamp: 0, moved: true))
-    justo.record(PointerReport(timestamp: 0.004, moved: true))
-    #expect(justo.health(now: 0.1).faults == 0, "un hueco de exactamente 4x no es fallo")
+    for reporte in calibracion {
+        justo.record(reporte)
+    }
+    justo.record(PointerReport(timestamp: ultimo + 0.004, moved: true))
+    #expect(justo.health(now: ultimo + 0.1).faults == 0, "un hueco de exactamente 4x no es fallo")
 
     let pasado = GapDetector(declaredIntervalSeconds: 0.001)
-    pasado.record(PointerReport(timestamp: 0, moved: true))
-    pasado.record(PointerReport(timestamp: 0.0041, moved: true))
-    #expect(pasado.health(now: 0.1).faults == 1, "por encima de 4x sí es fallo")
+    for reporte in calibracion {
+        pasado.record(reporte)
+    }
+    pasado.record(PointerReport(timestamp: ultimo + 0.0041, moved: true))
+    #expect(pasado.health(now: ultimo + 0.1).faults == 1, "por encima de 4x sí es fallo")
+}
+
+@Test("Tras reiniciar, un dispositivo que miente no produce una ráfaga de fallos")
+func reinicioNoProduceRafagaDeFallos() {
+    // El receptor declara 1 ms y entrega 8. Antes, cada reinicio —cada
+    // despertar del Mac— producía una ráfaga de fallos falsos.
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    for reporte in flujoRegular(intervalo: 0.008, cantidad: 100) {
+        detector.record(reporte)
+    }
+    #expect(detector.health(now: 1.0).faults == 0)
+
+    detector.reset()
+    for reporte in flujoRegular(intervalo: 0.008, cantidad: 100, desde: 10.0) {
+        detector.record(reporte)
+    }
+    #expect(detector.health(now: 11.0).faults == 0, "el reinicio no debe inventar fallos")
 }
 
 @Test("Una marca de tiempo fuera de orden no crea un fallo fantasma")
 func marcaFueraDeOrdenNoCreaFallo() {
     let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    // Calibrar primero, para que la prueba ejercite de verdad la guarda de
+    // orden y no pase solo porque el detector aún no juzga nada.
+    for reporte in flujoRegular(intervalo: 0.001, cantidad: 30) {
+        detector.record(reporte)
+    }
     detector.record(PointerReport(timestamp: 1.0, moved: true))
     // Llega un reporte atrasado: debe ignorarse sin mover la referencia.
     detector.record(PointerReport(timestamp: 0.9, moved: true))

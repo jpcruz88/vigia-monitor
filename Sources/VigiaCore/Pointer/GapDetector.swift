@@ -48,6 +48,9 @@ public final class GapDetector {
     public static let minimumSamples: Int = 20
     /// Cuántos huecos recientes se conservan para calcular la mediana.
     public static let sampleCapacity: Int = 500
+    /// Cada cuántas muestras se recalcula la mediana. Hacerlo en cada reporte
+    /// costaría medio millón de comparaciones por segundo a 1000 Hz.
+    public static let medianRefreshInterval: Int = 32
     /// Rango de cordura del intervalo esperado: de 2000 Hz a 20 Hz.
     public static let minimumInterval: Double = 0.0005
     public static let maximumInterval: Double = 0.05
@@ -55,6 +58,7 @@ public final class GapDetector {
     private let declaredInterval: Double?
     private var observedIntervals: [Double] = []
     private var cachedExpected: Double?
+    private var samplesSinceMedianRefresh = 0
     private var last: PointerReport?
     private var faults: [(at: Double, gap: Double)] = []
 
@@ -127,14 +131,22 @@ public final class GapDetector {
         if observedIntervals.count > Self.sampleCapacity {
             observedIntervals.removeFirst(observedIntervals.count - Self.sampleCapacity)
         }
-        cachedExpected = nil
+        samplesSinceMedianRefresh += 1
+        // Refrescar cada tantas muestras, y siempre en el instante exacto en
+        // que el detector queda calibrado, para no seguir usando el valor de
+        // arranque cuando ya hay datos propios.
+        if samplesSinceMedianRefresh >= Self.medianRefreshInterval
+            || observedIntervals.count == Self.minimumSamples {
+            cachedExpected = nil
+            samplesSinceMedianRefresh = 0
+        }
 
-        // Sin intervalo declarado y sin muestras suficientes no hay con qué
-        // juzgar: contar fallos aquí sería inventarlos durante el arranque.
-        if declaredInterval != nil || isCalibrated {
-            if hueco > expectedIntervalSeconds * Self.gapMultiplier {
-                faults.append((at: report.timestamp, gap: hueco))
-            }
+        // Hasta tener muestras propias no hay con qué juzgar. El intervalo que
+        // declara el dispositivo solo siembra el arranque: los receptores
+        // 2.4 GHz suelen declarar 1 ms y entregar 8, y creerles a ciegas
+        // convertiría cada reporte en un fallo falso tras cada reinicio.
+        if isCalibrated, hueco > expectedIntervalSeconds * Self.gapMultiplier {
+            faults.append((at: report.timestamp, gap: hueco))
         }
         prune(now: report.timestamp)
     }
@@ -155,6 +167,7 @@ public final class GapDetector {
         faults.removeAll()
         observedIntervals.removeAll()
         cachedExpected = nil
+        samplesSinceMedianRefresh = 0
     }
 
     private func prune(now: Double) {
