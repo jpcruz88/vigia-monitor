@@ -103,8 +103,21 @@ Es la única pieza con algoritmo propio y la razón principal de construir esto.
 1. Registrar la marca de tiempo de cada reporte HID del mouse.
 2. Considerar que hay **movimiento activo** cuando llegan reportes con desplazamiento
    distinto de cero.
-3. Determinar el intervalo esperado a partir de la propiedad `ReportInterval` del
-   dispositivo; si no la expone, usar la mediana observada.
+3. Determinar el intervalo esperado a partir de la mediana de los huecos observados.
+   La propiedad `ReportInterval` que declara el dispositivo solo siembra el arranque:
+   los receptores 2.4 GHz suelen declarar 1 ms mientras entregan 8, y creerles a
+   ciegas convertiría cada reporte en un fallo falso.
+   - **Todos** los huecos plausibles alimentan la mediana, incluidos los que se
+     cuentan como fallo. Si solo la alimentaran los huecos que pasan el umbral, el
+     filtro dependería de su propia salida: una sola ráfaga del hub USB podría anclar
+     la estimación y dejarla bloqueada para siempre. La mediana es robusta hasta un
+     50 % de valores atípicos, muy por encima de lo que este escenario produce.
+   - No se cuentan fallos hasta reunir 20 muestras. El costo son unos 160 ms de
+     ceguera tras cada reinicio, despreciable frente a una ventana de 60 segundos, y
+     a cambio ningún despertar del Mac produce una ráfaga de falsas alarmas.
+   - Un intervalo declarado que no sea finito y positivo se descarta: con cero, todo
+     hueco sería fallo; con NaN, ninguna comparación se cumpliría y el detector
+     callaría para siempre.
 4. Contar como **fallo** todo hueco mayor a 4 veces el intervalo esperado, **siempre que
    ocurra durante movimiento activo**. El multiplicador es una constante del código, no un
    ajuste del usuario: se calibra durante el desarrollo comparando contra trabones reales.

@@ -153,6 +153,25 @@ git commit -m "Andamiaje del paquete VigiaCore con MetricState"
 
 ### Task 2: GapDetector — flujo continuo no produce fallos
 
+> **Corregido durante la implementación (13 ago 2026).** El código de `GapDetector`
+> que aparece en las Tareas 2 a 4 contenía dos defectos críticos que una revisión
+> detectó y que ya están arreglados en el repositorio:
+>
+> 1. **El estimador de la mediana se realimentaba a sí mismo.** `observedIntervals`
+>    solo se llenaba con huecos que ya habían pasado el umbral, y el umbral depende
+>    de la mediana. Una sola ráfaga del hub USB podía anclar la estimación y dejarla
+>    bloqueada para siempre, contando cada reporte del mouse como fallo.
+> 2. **El intervalo declarado se aceptaba sin validar.** Con cero, todo hueco era
+>    fallo; con NaN, ninguno. Y los receptores 2.4 GHz suelen declarar 1 ms mientras
+>    entregan 8, lo que reproducía el mismo desastre.
+>
+> Además, la prueba `huecoCuentaComoFallo` tenía un error de conteo y pasaba por un
+> margen de 1.3e-17, y `maxGapSeconds` se renombró a `maxFaultGapSeconds`.
+>
+> **La fuente de verdad es `Sources/VigiaCore/Pointer/GapDetector.swift` en el
+> repositorio, no el código de estas tres tareas.** Se conservan tal cual para dejar
+> constancia de la secuencia de desarrollo.
+
 **Files:**
 - Create: `Sources/VigiaCore/Pointer/GapDetector.swift`
 - Modify: `Tests/VigiaCoreTests/GapDetectorTests.swift`
@@ -1756,7 +1775,7 @@ struct HUDView: View {
                 Text(salud.faults == 0
                      ? "estable"
                      : String(format: "%d fallos · %.0f ms", salud.faults,
-                              salud.maxGapSeconds * 1000))
+                              salud.maxFaultGapSeconds * 1000))
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(salud.faults == 0 ? Color.green : Color.orange)
             }
