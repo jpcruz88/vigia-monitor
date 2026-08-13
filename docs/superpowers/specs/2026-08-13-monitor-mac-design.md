@@ -108,7 +108,12 @@ Es la única pieza con algoritmo propio y la razón principal de construir esto.
 4. Contar como **fallo** todo hueco mayor a 4 veces el intervalo esperado, **siempre que
    ocurra durante movimiento activo**. El multiplicador es una constante del código, no un
    ajuste del usuario: se calibra durante el desarrollo comparando contra trabones reales.
-5. Mantener una ventana móvil de 60 segundos con la cuenta de fallos y el hueco máximo.
+5. Descartar como fallo cualquier hueco mayor a 0.5 segundos. Los mouse HID solo emiten
+   reportes cuando algo cambia, así que soltar el mouse produce un hueco de segundos: sin
+   este techo, cada pausa para escribir se contaría como pérdida de señal. Una pérdida real
+   de paquetes del dongle dura entre decenas y un par de cientos de milisegundos, muy por
+   debajo del techo.
+6. Mantener una ventana móvil de 60 segundos con la cuenta de fallos y el hueco máximo.
 
 La condición de movimiento activo del paso 4 es esencial: sin ella, soltar el mouse para
 escribir se contaría como cientos de fallos.
