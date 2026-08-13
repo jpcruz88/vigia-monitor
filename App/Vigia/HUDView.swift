@@ -189,6 +189,8 @@ struct HUDView: View {
 
     @ViewBuilder
     private var menu: some View {
+        Button("Ver consumo y actuar…") { model.showActions() }
+        Divider()
         Menu("Mostrar") {
             ForEach(MetricKind.allCases) { metrica in
                 Button {

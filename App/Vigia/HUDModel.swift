@@ -87,6 +87,14 @@ final class HUDModel: ObservableObject {
         ultimaSaludRecibida = .distantPast
     }
 
+    /// Abre la ventana de acciones. El controlador vive aquí para que la
+    /// ventana sobreviva al menú contextual que la invocó.
+    private let actionsWindow = ActionsWindowController()
+
+    func showActions() {
+        actionsWindow.show()
+    }
+
     func openInputMonitoringSettings() {
         guard let url = URL(string:
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
