@@ -165,6 +165,26 @@ Tres modos de fallo previstos, con su respuesta:
   muestras se descartan al despertar. Sin esto, el primer cálculo tras el despertar
   produciría un pico falso enorme.
 
+## Limitaciones conocidas del detector
+
+Salieron de las revisiones durante la implementación. Se documentan en vez de
+corregirse porque cada corrección cuesta más de lo que evita, o porque la corrección
+no es obvia. Ninguna produce datos incorrectos: todas son puntos ciegos, es decir,
+fallos reales que no se detectan.
+
+- **Un corte que termina en un reporte sin desplazamiento no se cuenta.** Si el primer
+  paquete que vuelve tras una pérdida trae estado de botón en lugar de movimiento, el
+  hueco no se detecta. Se acepta a cambio de no contar como fallo cada pausa breve del
+  usuario, que es mucho más frecuente.
+- **Un congelamiento de más de medio segundo desaparece del reporte**, por el techo de
+  pausa humana. Es justo el síntoma que un usuario describiría como "se trabó feo",
+  pero es indistinguible de soltar el mouse.
+- **Un cambio de tasa de sondeo a mitad de sesión produce fallos falsos durante unos
+  dos segundos.** Si el mouse pasa de 1000 Hz a 125 Hz sin desconectarse —cambio de
+  modo por ahorro de energía, por ejemplo—, la mediana no se mueve hasta que las
+  muestras nuevas son mayoría. Como el dispositivo no se desconecta, ningún reinicio
+  lo cubre.
+
 ## Ajustes persistidos
 
 En `UserDefaults`: posición del panel, opacidad, qué métricas mostrar y si la aplicación
