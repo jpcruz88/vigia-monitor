@@ -37,3 +37,10 @@ func discoCoherente() throws {
     #expect(metricas.freeBytes <= metricas.totalBytes)
     #expect(metricas.usedFraction >= 0 && metricas.usedFraction <= 1)
 }
+
+@Test("GPUSampler lee uso y memoria desde IORegistry")
+func gpuCoherente() throws {
+    let metricas = try GPUSampler().sample()
+    #expect(metricas.utilization >= 0 && metricas.utilization <= 1)
+    #expect(metricas.inUseMemoryBytes > 0)
+}
