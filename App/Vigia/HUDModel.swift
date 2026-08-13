@@ -32,9 +32,11 @@ final class HUDModel: ObservableObject {
 
     private static let claveOrigen = "hud.origin"
 
-    var savedOrigin: NSPoint {
+    /// `nil` la primera vez: entonces el panel elige una esquina visible por su
+    /// cuenta, que no puede decidirse aquí porque depende de su altura final.
+    var savedOrigin: NSPoint? {
         guard let guardado = UserDefaults.standard.string(forKey: Self.claveOrigen) else {
-            return NSPoint(x: 60, y: 60)
+            return nil
         }
         return NSPointFromString(guardado)
     }

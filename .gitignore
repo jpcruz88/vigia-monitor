@@ -4,3 +4,5 @@ DerivedData/
 *.xcuserstate
 .build/
 .swiftpm/
+App/build/
+*.xcodeproj/xcuserdata/

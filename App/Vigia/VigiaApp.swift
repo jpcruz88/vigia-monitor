@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let panel = HUDPanel(content: HUDView(model: model))
-        panel.setFrameOrigin(model.savedOrigin)
+        panel.colocar(en: model.savedOrigin)
         panel.orderFrontRegardless()
         self.panel = panel
         model.start()
