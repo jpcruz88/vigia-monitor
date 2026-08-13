@@ -50,6 +50,30 @@ func valorPrevioSeConservaComoViejo() async throws {
     }
 }
 
+@Test("Un muestreo lento de periféricos no bloquea la lectura del snapshot")
+func perifericosLentosNoBloqueanElSnapshot() async throws {
+    let motor = MetricsEngine(
+        memory: MemorySampler(),
+        cpu: CPUSampler(),
+        gpu: GPUSampler(),
+        disk: DiskSampler(),
+        peripherals: PeripheralSampler(command: "/bin/sleep", arguments: ["3"], timeout: 5)
+    )
+    await motor.refreshFast()
+
+    // Arranca el muestreo lento sin esperarlo.
+    let lento = Task { await motor.refreshPeripherals() }
+
+    // El snapshot debe seguir siendo legible mientras aquello ocurre.
+    let inicio = Date()
+    _ = await motor.snapshot
+    let transcurrido = Date().timeIntervalSince(inicio)
+    #expect(transcurrido < 1.0,
+            "leer el snapshot tardó \(transcurrido) s: el actor estaba bloqueado")
+
+    _ = await lento.value
+}
+
 @Test("El motor puede marcar el puntero como no disponible")
 func punteroSeMarcaNoDisponible() async throws {
     let motor = MetricsEngine(

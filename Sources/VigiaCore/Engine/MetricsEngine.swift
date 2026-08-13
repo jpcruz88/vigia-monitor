@@ -62,14 +62,27 @@ public actor MetricsEngine {
         apply(&snapshot.disk) { try disk.sample() }
     }
 
-    public func refreshPeripherals() {
-        apply(&snapshot.peripherals) { try peripherals.sample() }
+    /// El muestreo de periféricos lanza un proceso externo que tarda
+    /// segundos. Se espera **fuera** del aislamiento del actor: `sample()` es
+    /// `async` y `PeripheralSampler` es una `struct` `Sendable`, así que la
+    /// llamada no corre en el ejecutor del actor y la suspensión lo deja
+    /// libre para seguir atendiendo lecturas del snapshot. Muestrear dentro
+    /// del aislamiento congelaba el panel entero hasta diez segundos.
+    public func refreshPeripherals() async {
+        let resultado: Result<PeripheralMetrics, Error>
+        do {
+            resultado = .success(try await peripherals.sample())
+        } catch {
+            resultado = .failure(error)
+        }
+        // De vuelta en el actor, ya con el resultado en la mano.
+        apply(&snapshot.peripherals) { try resultado.get() }
     }
 
-    public func refreshAll() {
+    public func refreshAll() async {
         refreshFast()
         refreshDisk()
-        refreshPeripherals()
+        await refreshPeripherals()
     }
 
     public func updatePointer(_ salud: PointerHealth) {
