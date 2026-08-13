@@ -27,25 +27,28 @@ func flujoContinuoSinFallos() {
     }
     let salud = detector.health(now: 0.5)
     #expect(salud.faults == 0)
-    #expect(salud.maxGapSeconds == 0)
+    #expect(salud.maxFaultGapSeconds == 0)
 }
 
 @Test("Un hueco de 80 ms en medio del movimiento cuenta como un fallo")
 func huecoCuentaComoFallo() {
     let detector = GapDetector(declaredIntervalSeconds: 0.001)
-    // 100 reportes normales, luego un salto de 80 ms, luego 100 más.
-    for reporte in flujoRegular(intervalo: 0.001, cantidad: 100) {
+    let regulares = flujoRegular(intervalo: 0.001, cantidad: 100)
+    for reporte in regulares {
         detector.record(reporte)
     }
-    let despuesDelHueco = 0.100 + 0.080
+    // Partir del último reporte emitido, no de un valor supuesto.
+    let ultimo = regulares.last!.timestamp
+    let hueco = 0.080
+    let despuesDelHueco = ultimo + hueco
     detector.record(PointerReport(timestamp: despuesDelHueco, moved: true))
     for reporte in flujoRegular(intervalo: 0.001, cantidad: 100, desde: despuesDelHueco + 0.001) {
         detector.record(reporte)
     }
 
-    let salud = detector.health(now: 0.3)
+    let salud = detector.health(now: despuesDelHueco + 0.2)
     #expect(salud.faults == 1)
-    #expect(abs(salud.maxGapSeconds - 0.080) < 0.001)
+    #expect(abs(salud.maxFaultGapSeconds - hueco) < 1e-6)
 }
 
 @Test("Los fallos salen de la ventana móvil al pasar 60 segundos")
@@ -80,4 +83,99 @@ func huecoTrasReposoNoEsFallo() {
     detector.record(PointerReport(timestamp: 0.001, moved: false))
     detector.record(PointerReport(timestamp: 0.081, moved: true))
     #expect(detector.health(now: 0.1).faults == 0)
+}
+
+@Test("Sin intervalo declarado, una ráfaga inicial no ancla el estimador")
+func rafagaInicialNoAnclaElEstimador() {
+    // Un hub USB puede entregar dos reportes en la misma transferencia.
+    // El diseño anterior tomaba ese 0.2 ms como intervalo esperado y a
+    // partir de ahí contaba cada reporte real como fallo, para siempre.
+    let detector = GapDetector(declaredIntervalSeconds: nil)
+    detector.record(PointerReport(timestamp: 0, moved: true))
+    detector.record(PointerReport(timestamp: 0.0002, moved: true))
+    for reporte in flujoRegular(intervalo: 0.008, cantidad: 200, desde: 0.0082) {
+        detector.record(reporte)
+    }
+
+    let salud = detector.health(now: 2.0)
+    #expect(salud.faults == 0)
+    #expect(abs(salud.expectedIntervalSeconds - 0.008) < 0.0005)
+}
+
+@Test("Sin intervalo declarado, un dispositivo lento no genera fallos falsos")
+func dispositivoLentoNoGeneraFallosFalsos() {
+    // 50 ms por reporte (20 Hz) supera el intervalo de arranque de 8 ms.
+    // El diseño anterior contaba cada uno de sus reportes como fallo.
+    let detector = GapDetector(declaredIntervalSeconds: nil)
+    for reporte in flujoRegular(intervalo: 0.05, cantidad: 100) {
+        detector.record(reporte)
+    }
+    #expect(detector.health(now: 5.0).faults == 0)
+}
+
+@Test("Un intervalo declarado inválido se trata como ausente")
+func intervaloDeclaradoInvalido() {
+    for invalido in [0.0, -1.0, Double.nan, Double.infinity] {
+        let detector = GapDetector(declaredIntervalSeconds: invalido)
+        for reporte in flujoRegular(intervalo: 0.008, cantidad: 100) {
+            detector.record(reporte)
+        }
+        let salud = detector.health(now: 1.0)
+        #expect(salud.faults == 0, "con \(invalido) no debería inventar fallos")
+        #expect(salud.expectedIntervalSeconds.isFinite)
+        #expect(salud.expectedIntervalSeconds > 0)
+    }
+}
+
+@Test("Un intervalo declarado que miente no produce fallos perpetuos")
+func intervaloDeclaradoQueMiente() {
+    // El receptor declara 1 ms pero entrega 8 ms.
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    for reporte in flujoRegular(intervalo: 0.008, cantidad: 200) {
+        detector.record(reporte)
+    }
+    // Los primeros reportes sí se cuentan como fallo, porque solo se
+    // dispone del dato declarado. Lo que no puede pasar es que siga
+    // contándolos indefinidamente una vez hay muestras propias.
+    let salud = detector.health(now: 2.0)
+    #expect(salud.faults < 30, "se esperaban fallos solo durante la calibración, hubo \(salud.faults)")
+    #expect(abs(salud.expectedIntervalSeconds - 0.008) < 0.0005)
+}
+
+@Test("Reiniciar deja el detector como recién creado")
+func reiniciarDejaEstadoLimpio() {
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    detector.record(PointerReport(timestamp: 0, moved: true))
+    detector.record(PointerReport(timestamp: 0.080, moved: true))
+    #expect(detector.health(now: 0.1).faults == 1)
+
+    detector.reset()
+    #expect(detector.health(now: 0.1).faults == 0)
+    // Tras reiniciar no debe medirse un hueco a caballo del corte.
+    detector.record(PointerReport(timestamp: 100.0, moved: true))
+    #expect(detector.health(now: 100.1).faults == 0)
+}
+
+@Test("El umbral del multiplicador se aplica de forma estricta")
+func umbralDelMultiplicadorEsEstricto() {
+    // Con 1 ms declarado, el umbral es exactamente 4 ms.
+    let justo = GapDetector(declaredIntervalSeconds: 0.001)
+    justo.record(PointerReport(timestamp: 0, moved: true))
+    justo.record(PointerReport(timestamp: 0.004, moved: true))
+    #expect(justo.health(now: 0.1).faults == 0, "un hueco de exactamente 4x no es fallo")
+
+    let pasado = GapDetector(declaredIntervalSeconds: 0.001)
+    pasado.record(PointerReport(timestamp: 0, moved: true))
+    pasado.record(PointerReport(timestamp: 0.0041, moved: true))
+    #expect(pasado.health(now: 0.1).faults == 1, "por encima de 4x sí es fallo")
+}
+
+@Test("Una marca de tiempo fuera de orden no crea un fallo fantasma")
+func marcaFueraDeOrdenNoCreaFallo() {
+    let detector = GapDetector(declaredIntervalSeconds: 0.001)
+    detector.record(PointerReport(timestamp: 1.0, moved: true))
+    // Llega un reporte atrasado: debe ignorarse sin mover la referencia.
+    detector.record(PointerReport(timestamp: 0.9, moved: true))
+    detector.record(PointerReport(timestamp: 1.001, moved: true))
+    #expect(detector.health(now: 1.1).faults == 0)
 }
