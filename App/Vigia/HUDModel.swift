@@ -1,0 +1,174 @@
+import Foundation
+import SwiftUI
+import AppKit
+import VigiaCore
+
+/// Une el motor con la vista y gobierna los ritmos de refresco.
+///
+/// Vive en el actor principal porque `PointerHealthMonitor` exige que
+/// `start()` y `stop()` se llamen siempre desde el mismo hilo, y porque la
+/// vista lee sus propiedades publicadas.
+@MainActor
+final class HUDModel: ObservableObject {
+    @Published private(set) var snapshot: SystemSnapshot = .empty
+    @Published private(set) var pointerPermissionDenied = false
+
+    private let engine = MetricsEngine(
+        memory: MemorySampler(),
+        cpu: CPUSampler(),
+        gpu: GPUSampler(),
+        disk: DiskSampler(),
+        peripherals: PeripheralSampler()
+    )
+    private let pointer = PointerHealthMonitor()
+    private var tareas: [Task<Void, Never>] = []
+
+    /// Última salud recibida del mouse y cuándo llegó. Sirven para detectar el
+    /// silencio: los reportes HID solo llegan al mover el mouse, así que sin
+    /// esto la cuenta de fallos se congelaría en pantalla indefinidamente.
+    private var ultimaSalud: PointerHealth?
+    private var ultimaSaludRecibida = Date.distantPast
+    private var mouseDisponible = true
+
+    private static let claveOrigen = "hud.origin"
+
+    var savedOrigin: NSPoint {
+        guard let guardado = UserDefaults.standard.string(forKey: Self.claveOrigen) else {
+            return NSPoint(x: 60, y: 60)
+        }
+        return NSPointFromString(guardado)
+    }
+
+    func saveOrigin(_ punto: NSPoint) {
+        UserDefaults.standard.set(NSStringFromPoint(punto), forKey: Self.claveOrigen)
+    }
+
+    // MARK: - Ciclo de vida
+
+    func start() {
+        conectarMouse()
+
+        // Ritmo rápido: CPU, memoria y GPU. Son llamadas al kernel que cuestan
+        // microsegundos, así que pueden correr cada segundo sin costo notable.
+        tareas.append(bucle(cada: .seconds(1)) { [engine] in
+            await engine.refreshFast()
+        })
+        // El disco cambia despacio y `statfs` toca el sistema de archivos.
+        tareas.append(bucle(cada: .seconds(30)) { [engine] in
+            await engine.refreshDisk()
+        })
+        // `system_profiler` lanza un proceso y tarda segundos: cada cinco
+        // minutos es lo más seguido que tiene sentido llamarlo.
+        tareas.append(bucle(cada: .seconds(300)) { [engine] in
+            await engine.refreshPeripherals()
+        })
+    }
+
+    func stop() {
+        tareas.forEach { $0.cancel() }
+        tareas.removeAll()
+        // Obligatorio antes de soltar la referencia: los callbacks de IOKit
+        // guardan un puntero sin dueño a este monitor.
+        pointer.stop()
+    }
+
+    /// Al despertar del sueño hay que descartar dos acumuladores distintos: los
+    /// contadores de CPU, que se calculan por diferencia, y las estadísticas del
+    /// mouse, que quedaron congeladas desde antes de dormir.
+    func handleWake() {
+        Task { [engine, pointer] in
+            await engine.resetAccumulators()
+            pointer.reset()
+        }
+        ultimaSalud = nil
+        ultimaSaludRecibida = .distantPast
+    }
+
+    func openInputMonitoringSettings() {
+        guard let url = URL(string:
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Cableado del mouse
+
+    private func conectarMouse() {
+        pointer.onHealthUpdate = { [weak self] salud in
+            Task { @MainActor [weak self] in
+                self?.recibirSalud(salud)
+            }
+        }
+        pointer.onAvailabilityChange = { [weak self] disponible in
+            Task { @MainActor [weak self] in
+                await self?.cambiarDisponibilidad(disponible)
+            }
+        }
+
+        if !pointer.start() {
+            pointerPermissionDenied = true
+            Task { [engine] in
+                await engine.markPointerUnavailable(reason: "permiso requerido")
+            }
+        }
+    }
+
+    private func recibirSalud(_ salud: PointerHealth) {
+        // Una actualización puede llegar después de que el mouse se desconectó:
+        // los dos callbacks vienen por hilos distintos y no hay orden
+        // garantizado entre ellos. Descartarla evita que el panel vuelva a
+        // afirmar que todo va bien con un dispositivo ausente.
+        guard mouseDisponible else { return }
+        ultimaSalud = salud
+        ultimaSaludRecibida = Date()
+        Task { [engine] in await engine.updatePointer(salud) }
+    }
+
+    private func cambiarDisponibilidad(_ disponible: Bool) async {
+        mouseDisponible = disponible
+        if !disponible {
+            ultimaSalud = nil
+            await engine.markPointerUnavailable(reason: "mouse desconectado")
+        }
+    }
+
+    /// Un mouse quieto no emite reportes, así que sin esto la última cuenta de
+    /// fallos se quedaría en pantalla para siempre. Pasada la ventana móvil sin
+    /// noticias, la cuenta correcta es cero: la ventana ya expiró.
+    private func caducarSaludDelMouse() async {
+        guard mouseDisponible, let ultima = ultimaSalud else { return }
+        let silencio = Date().timeIntervalSince(ultimaSaludRecibida)
+        guard silencio > GapDetector.windowSeconds else { return }
+
+        let vacia = PointerHealth(
+            faults: 0,
+            maxFaultGapSeconds: 0,
+            expectedIntervalSeconds: ultima.expectedIntervalSeconds
+        )
+        ultimaSalud = vacia
+        await engine.updatePointer(vacia)
+    }
+
+    // MARK: - Bucles
+
+    /// Un bucle que se repite hasta que se cancela la tarea. Usa `[weak self]`
+    /// porque estas tareas nunca terminan solas: una referencia fuerte
+    /// impediría liberar el modelo al cerrar la aplicación.
+    private func bucle(
+        cada intervalo: Duration,
+        _ trabajo: @escaping @Sendable () async -> Void
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            while !Task.isCancelled {
+                await trabajo()
+                await self?.caducarSaludDelMouse()
+                await self?.publicar()
+                try? await Task.sleep(for: intervalo)
+            }
+        }
+    }
+
+    private func publicar() async {
+        snapshot = await engine.snapshot
+    }
+}

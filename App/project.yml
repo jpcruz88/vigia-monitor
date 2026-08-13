@@ -1,0 +1,58 @@
+name: Vigia
+
+options:
+  bundleIdPrefix: com.jpcruz
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  VigiaCore:
+    path: ../
+
+targets:
+  Vigia:
+    type: application
+    platform: macOS
+    sources:
+      - path: Vigia
+    dependencies:
+      - package: VigiaCore
+        product: VigiaCore
+    info:
+      path: Vigia/Info.plist
+      properties:
+        CFBundleName: Vigía
+        CFBundleDisplayName: Vigía
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        # Sin icono en el Dock ni en Cmd-Tab: es una utilidad que se mira, no
+        # una aplicación con la que se trabaja.
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+        NSInputMonitoringUsageDescription: >-
+          Vigía mide los tiempos entre reportes del mouse para detectar
+          pérdidas de señal del receptor inalámbrico. No registra qué teclas
+          pulsas ni a dónde apuntas.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jpcruz.vigia
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # Firma con identidad de desarrollador para que macOS reconozca
+        # siempre la misma app: con firma ad-hoc, el permiso de Monitoreo de
+        # Entrada habría que concederlo de nuevo tras cada compilación.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: MS4534M938
+        CODE_SIGN_IDENTITY: Apple Development
+        # El sandbox de macOS bloquea IOHIDManager, que es lo que necesita el
+        # detector de trabones. Esta app no va a la Mac App Store.
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
