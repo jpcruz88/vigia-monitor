@@ -7,21 +7,37 @@ import IOKit.hid
 /// Requiere el permiso de Monitoreo de Entrada. Si no lo hay, `start()`
 /// devuelve `false` y la aplicación sigue funcionando sin esta métrica.
 ///
+/// **Contrato de vida:** hay que llamar a `stop()` antes de soltar la última
+/// referencia. Los callbacks de IOKit guardan un puntero sin dueño a esta
+/// instancia (`passUnretained`), así que un gestor todavía abierto y
+/// agendado en el run loop puede entregar un evento a memoria ya liberada.
+/// No hay `deinit` que lo arregle: un `deinit` que despache a `queue`
+/// resucitaría `self` mientras se destruye. Trátala como un objeto de vida
+/// larga y ciérrala explícitamente.
+///
 /// `@unchecked Sendable`: el compilador no puede verificar esta clase porque
 /// guarda estado mutable y un `GapDetector`, que tampoco es `Sendable`. La
 /// seguridad no la da el compilador sino esta disciplina: `detector` y
 /// `lastPublished` solo se tocan dentro de `queue`, que es serial, y
-/// `manager` y `onHealthUpdate` solo se tocan desde el hilo que llama a
-/// `start()` y `stop()` (en la aplicación, el principal). Nada de eso sale
-/// de aquí: el detector se crea adentro y nunca se comparte.
+/// `manager`, `matchedDevices` y los dos callbacks públicos solo se tocan
+/// desde el hilo que llama a `start()` y `stop()` (en la aplicación, el
+/// principal, que es también donde IOKit entrega sus callbacks porque el
+/// gestor se agenda en el run loop principal). Nada de eso sale de aquí: el
+/// detector se crea adentro y nunca se comparte.
 public final class PointerHealthMonitor: @unchecked Sendable {
     /// Se invoca en la cola interna con la salud actualizada.
     public var onHealthUpdate: (@Sendable (PointerHealth) -> Void)?
+
+    /// Se invoca cuando el mouse aparece o desaparece. Un mouse que se
+    /// desconecta deja de emitir reportes, así que su caída no puede
+    /// notarse por el flujo de eventos: solo IOKit puede avisar.
+    public var onAvailabilityChange: (@Sendable (Bool) -> Void)?
 
     private let queue = DispatchQueue(label: "com.vigia.pointer")
     private var manager: IOHIDManager?
     private var detector = GapDetector(declaredIntervalSeconds: nil)
     private var lastPublished = Date.distantPast
+    private var matchedDevices = 0
 
     public init() {}
 
@@ -47,20 +63,52 @@ public final class PointerHealthMonitor: @unchecked Sendable {
             monitor.handle(valor)
         }, contexto)
 
+        IOHIDManagerRegisterDeviceMatchingCallback(gestor, { contexto, _, _, _ in
+            guard let contexto else { return }
+            Unmanaged<PointerHealthMonitor>.fromOpaque(contexto)
+                .takeUnretainedValue()
+                .handleDeviceChange(delta: 1)
+        }, contexto)
+
+        IOHIDManagerRegisterDeviceRemovalCallback(gestor, { contexto, _, _, _ in
+            guard let contexto else { return }
+            Unmanaged<PointerHealthMonitor>.fromOpaque(contexto)
+                .takeUnretainedValue()
+                .handleDeviceChange(delta: -1)
+        }, contexto)
+
         manager = gestor
         return true
     }
 
     public func stop() {
         guard let manager else { return }
+        // Desregistrar antes de cerrar: un evento en vuelo desreferenciaría
+        // el contexto sin dueño.
+        IOHIDManagerRegisterInputValueCallback(manager, nil, nil)
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, nil, nil)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, nil, nil)
+        IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(),
+                                          CFRunLoopMode.defaultMode.rawValue)
         IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
         self.manager = nil
+        matchedDevices = 0
         queue.async { self.detector.reset() }
     }
 
     /// Descarta el estado acumulado. Se llama al despertar del sueño.
     public func reset() {
         queue.async { self.detector.reset() }
+    }
+
+    /// Al desconectarse el mouse hay que descartar las estadísticas: el
+    /// siguiente reporte tras reconectar mediría un hueco de minutos contra
+    /// el último reporte de antes, y no significaría nada.
+    private func handleDeviceChange(delta: Int) {
+        matchedDevices = max(0, matchedDevices + delta)
+        let disponible = matchedDevices > 0
+        queue.async { self.detector.reset() }
+        onAvailabilityChange?(disponible)
     }
 
     private func handle(_ valor: IOHIDValue) {
