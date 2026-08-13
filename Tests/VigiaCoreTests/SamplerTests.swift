@@ -12,6 +12,23 @@ func memoriaCoherente() throws {
     #expect(metricas.usedFraction >= 0 && metricas.usedFraction <= 1)
 }
 
+@Test("La fracción usada no cuenta la caché reclamable como memoria ocupada")
+func memoriaNoCuentaCacheComoUsada() throws {
+    let m = try MemorySampler().sample()
+    let ingenua = Double(m.totalBytes - m.freeBytes) / Double(m.totalBytes)
+
+    // Las páginas inactivas y especulativas son caché de archivos que macOS
+    // recupera al instante. Contarlas como usadas clava el indicador cerca
+    // del 100 % en todo momento y lo vuelve inútil.
+    if m.inactiveBytes + m.speculativeBytes > 500_000_000 {
+        #expect(m.usedFraction < ingenua - 0.05,
+                "usada \(m.usedFraction) contra ingenua \(ingenua)")
+    }
+    // Un valor casi nulo delataría que la fórmula perdió términos.
+    #expect(m.usedFraction > 0.05)
+    #expect(m.usedFraction <= 1)
+}
+
 @Test("CPUSampler necesita dos muestras y luego da porcentajes válidos")
 func cpuNecesitaDosMuestras() throws {
     let muestreador = CPUSampler()
