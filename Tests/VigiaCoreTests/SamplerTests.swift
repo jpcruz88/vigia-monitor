@@ -44,3 +44,24 @@ func gpuCoherente() throws {
     #expect(metricas.utilization >= 0 && metricas.utilization <= 1)
     #expect(metricas.inUseMemoryBytes > 0)
 }
+
+@Test("PeripheralSampler respeta su límite de tiempo")
+func perifericoRespetaLimite() {
+    // Un comando que nunca termina debe abortarse, no colgar la prueba.
+    let muestreador = PeripheralSampler(command: "/bin/sleep", arguments: ["30"], timeout: 0.5)
+    let inicio = Date()
+    #expect(throws: SamplerError.self) {
+        _ = try muestreador.runCommand()
+    }
+    #expect(Date().timeIntervalSince(inicio) < 5)
+}
+
+@Test("PeripheralSampler extrae la batería del teclado Bluetooth")
+func perifericoLeeBateria() throws {
+    let muestreador = PeripheralSampler()
+    let metricas = try muestreador.sample()
+    // Puede no haber teclado Bluetooth conectado; lo que no puede es lanzar error.
+    if let bateria = metricas.keyboardBatteryPercent {
+        #expect(bateria >= 0 && bateria <= 100)
+    }
+}
