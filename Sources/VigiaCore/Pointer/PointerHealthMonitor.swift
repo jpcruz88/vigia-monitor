@@ -53,7 +53,17 @@ public final class PointerHealthMonitor: @unchecked Sendable {
         IOHIDManagerScheduleWithRunLoop(gestor, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
         let apertura = IOHIDManagerOpen(gestor, IOOptionBits(kIOHIDOptionsTypeNone))
-        guard apertura == kIOReturnSuccess else { return false }
+        guard apertura == kIOReturnSuccess else {
+            // Hay que desagendarlo aquí mismo: `manager` sigue en `nil`, así
+            // que `stop()` retornaría de inmediato sin limpiar nada. Una
+            // aplicación que reintente `start()` cada pocos segundos mientras
+            // espera el permiso de Monitoreo de Entrada —que es justo el caso
+            // que el diseño exige soportar— iría acumulando gestores
+            // agendados en el run loop principal.
+            IOHIDManagerUnscheduleFromRunLoop(gestor, CFRunLoopGetMain(),
+                                              CFRunLoopMode.defaultMode.rawValue)
+            return false
+        }
 
         let contexto = Unmanaged.passUnretained(self).toOpaque()
         IOHIDManagerRegisterInputValueCallback(gestor, { contexto, _, _, valor in
