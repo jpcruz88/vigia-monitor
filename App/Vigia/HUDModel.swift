@@ -115,6 +115,17 @@ final class HUDModel: ObservableObject {
         }
     }
 
+    /// Si el usuario concede el permiso en Ajustes del Sistema, la app debe
+    /// enterarse sola. Obligarle a reiniciarla justo después de hacer lo que le
+    /// pedimos sería una mala experiencia, y además parecería que no funcionó.
+    private func reintentarSiSeConcedioElPermiso() {
+        guard pointerPermissionDenied else { return }
+        guard PointerHealthMonitor.access == .granted else { return }
+        if pointer.start() {
+            pointerPermissionDenied = false
+        }
+    }
+
     private func recibirSalud(_ salud: PointerHealth) {
         // Una actualización puede llegar después de que el mouse se desconectó:
         // los dos callbacks vienen por hilos distintos y no hay orden
@@ -163,6 +174,7 @@ final class HUDModel: ObservableObject {
         Task { [weak self] in
             while !Task.isCancelled {
                 await trabajo()
+                await self?.reintentarSiSeConcedioElPermiso()
                 await self?.caducarSaludDelMouse()
                 await self?.publicar()
                 try? await Task.sleep(for: intervalo)

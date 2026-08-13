@@ -41,9 +41,47 @@ public final class PointerHealthMonitor: @unchecked Sendable {
 
     public init() {}
 
-    /// - Returns: `false` si no se pudo abrir el gestor, casi siempre porque
-    ///   falta el permiso de Monitoreo de Entrada.
+    /// Estado del permiso de Monitoreo de Entrada.
+    public enum Access: Sendable {
+        case granted
+        case denied
+        /// Nunca se ha preguntado, así que la app todavía no aparece en la
+        /// lista de Ajustes del Sistema.
+        case undetermined
+    }
+
+    /// Consulta el permiso sin pedirlo.
+    public static var access: Access {
+        switch IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) {
+        case kIOHIDAccessTypeGranted: return .granted
+        case kIOHIDAccessTypeDenied: return .denied
+        default: return .undetermined
+        }
+    }
+
+    /// - Returns: `false` si no se pudo arrancar, casi siempre porque falta el
+    ///   permiso de Monitoreo de Entrada.
     public func start() -> Bool {
+        // Pedir el permiso explícitamente no es opcional, por dos razones que
+        // no son evidentes:
+        //
+        // 1. `IOHIDManagerOpen` devuelve éxito aunque el permiso falte; lo
+        //    único que ocurre es que no llega ni un solo evento. Sin esta
+        //    comprobación la app creería estar midiendo y mostraría "sin
+        //    señal" para siempre, sin explicar por qué.
+        // 2. macOS solo lista una app en Ajustes del Sistema → Monitoreo de
+        //    entrada después de que la app haya pedido el permiso. Sin pedirlo,
+        //    el usuario no tiene ninguna casilla que activar.
+        switch Self.access {
+        case .granted:
+            break
+        case .denied:
+            return false
+        case .undetermined:
+            // Muestra el diálogo del sistema y registra la app en la lista.
+            guard IOHIDRequestAccess(kIOHIDRequestTypeListenEvent) else { return false }
+        }
+
         let gestor = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
         let criterio: [String: Any] = [
             kIOHIDDeviceUsagePageKey as String: kHIDPage_GenericDesktop,
