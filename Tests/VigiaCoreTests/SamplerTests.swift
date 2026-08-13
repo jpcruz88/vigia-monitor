@@ -12,6 +12,24 @@ func memoriaCoherente() throws {
     #expect(metricas.usedFraction >= 0 && metricas.usedFraction <= 1)
 }
 
+@Test("CPUSampler necesita dos muestras y luego da porcentajes válidos")
+func cpuNecesitaDosMuestras() throws {
+    let muestreador = CPUSampler()
+    // La primera lectura solo siembra los contadores.
+    #expect(try muestreador.sample() == nil)
+
+    // Generar algo de trabajo para que los contadores avancen.
+    var suma = 0.0
+    for i in 0..<2_000_000 { suma += Double(i).squareRoot() }
+    #expect(suma > 0)
+
+    let metricas = try #require(try muestreador.sample())
+    #expect(metricas.totalUsage >= 0 && metricas.totalUsage <= 1)
+    #expect(metricas.performanceUsage >= 0 && metricas.performanceUsage <= 1)
+    #expect(metricas.efficiencyUsage >= 0 && metricas.efficiencyUsage <= 1)
+    #expect(metricas.coreCount > 0)
+}
+
 @Test("DiskSampler concuerda con el tamaño real del volumen")
 func discoCoherente() throws {
     let metricas = try DiskSampler().sample()
