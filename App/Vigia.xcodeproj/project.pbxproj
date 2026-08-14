@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		07089F8CA823BC3E9E80B551 /* HUDPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337E3E3A3035E290F13D4FAF /* HUDPanel.swift */; };
+		19215D900E92D7B51E962B0B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123DB8ABBA73A9BDD3476E88 /* Theme.swift */; };
 		2CB798FDE7479DB71A58A826 /* VigiaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 156FFA95A4BF3D4A3E67C91C /* VigiaApp.swift */; };
 		6639B8468E7D52F194A51CD4 /* ActionsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD5C777FAC25C21E9D2106E /* ActionsWindow.swift */; };
 		8A28FEC59D9B2432C3A96E32 /* HUDModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9885355A1A778C11E77801 /* HUDModel.swift */; };
@@ -20,6 +21,7 @@
 
 /* Begin PBXFileReference section */
 		0EC2E2A5253015A3DBD4B549 /* Vigia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vigia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		123DB8ABBA73A9BDD3476E88 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		156FFA95A4BF3D4A3E67C91C /* VigiaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VigiaApp.swift; sourceTree = "<group>"; };
 		2BD5C777FAC25C21E9D2106E /* ActionsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsWindow.swift; sourceTree = "<group>"; };
 		337E3E3A3035E290F13D4FAF /* HUDPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDPanel.swift; sourceTree = "<group>"; };
@@ -80,6 +82,7 @@
 				53F191D944CFC3FAFEAA9DD1 /* HUDView.swift */,
 				7E8194C191F65BF4E51EA2A0 /* Info.plist */,
 				48FE305288BF40A765F9B51E /* SettingsStore.swift */,
+				123DB8ABBA73A9BDD3476E88 /* Theme.swift */,
 				156FFA95A4BF3D4A3E67C91C /* VigiaApp.swift */,
 			);
 			path = Vigia;
@@ -156,6 +159,7 @@
 				07089F8CA823BC3E9E80B551 /* HUDPanel.swift in Sources */,
 				FC10D6142EC401EA858DE4A1 /* HUDView.swift in Sources */,
 				8CE413F4719E367341F36C09 /* SettingsStore.swift in Sources */,
+				19215D900E92D7B51E962B0B /* Theme.swift in Sources */,
 				2CB798FDE7479DB71A58A826 /* VigiaApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

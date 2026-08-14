@@ -11,6 +11,11 @@ import SwiftUI
 final class ActionsWindowController {
     private var window: NSWindow?
     private let model = ActionsModel()
+    private let settings: SettingsStore
+
+    init(settings: SettingsStore) {
+        self.settings = settings
+    }
 
     func show() {
         if let window {
@@ -26,7 +31,8 @@ final class ActionsWindowController {
             defer: false
         )
         ventana.title = "Vigía · Acciones"
-        ventana.contentView = NSHostingView(rootView: ActionsView(model: model))
+        ventana.contentView = NSHostingView(
+            rootView: ActionsView(model: model, settings: settings))
         ventana.center()
         // La app corre sin icono en el Dock, así que sin esto la ventana
         // aparecería detrás de lo que el usuario tuviera delante.

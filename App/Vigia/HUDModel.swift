@@ -87,9 +87,16 @@ final class HUDModel: ObservableObject {
         ultimaSaludRecibida = .distantPast
     }
 
-    /// Abre la ventana de acciones. El controlador vive aquí para que la
-    /// ventana sobreviva al menú contextual que la invocó.
-    private let actionsWindow = ActionsWindowController()
+    /// Los ajustes viven aquí, no dentro de la vista, porque el panel y la
+    /// ventana de acciones tienen que compartir el mismo objeto: dos instancias
+    /// leerían los mismos valores guardados pero no se enterarían de los
+    /// cambios de la otra, y elegir "siempre oscuro" dejaría una de las dos
+    /// ventanas con el aspecto anterior.
+    let settings = SettingsStore()
+
+    /// El controlador vive aquí para que la ventana sobreviva al menú
+    /// contextual que la invocó.
+    private lazy var actionsWindow = ActionsWindowController(settings: settings)
 
     func showActions() {
         actionsWindow.show()

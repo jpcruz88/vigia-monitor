@@ -5,7 +5,21 @@ import VigiaCore
 /// Dibuja el snapshot. Sin lógica: si aquí aparece un cálculo, va en el motor.
 struct HUDView: View {
     @ObservedObject var model: HUDModel
-    @StateObject private var settings = SettingsStore()
+    @ObservedObject private var settings: SettingsStore
+
+    init(model: HUDModel) {
+        self.model = model
+        self.settings = model.settings
+    }
+
+    /// Lo que macOS tiene puesto. Solo se usa cuando el ajuste es "seguir al
+    /// sistema"; en los demás modos manda el ajuste.
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// La paleta vigente. Todo color del panel sale de aquí.
+    private var paleta: Palette {
+        settings.theme.palette(dark: settings.isDark(systemDark: colorScheme == .dark))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -22,9 +36,22 @@ struct HUDView: View {
         .padding(12)
         .frame(width: 250, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(fondo)
         .opacity(settings.opacity)
         .contextMenu { menu }
+    }
+
+    /// El tema "Sistema" usa el material translúcido, que deja ver el fondo de
+    /// escritorio; los demás son opacos y por eso se leen igual sobre cualquier
+    /// cosa. No es un color más: un material no se puede imitar con uno.
+    @ViewBuilder
+    private var fondo: some View {
+        let forma = RoundedRectangle(cornerRadius: 12)
+        if let color = paleta.background {
+            forma.fill(color)
+        } else {
+            forma.fill(.regularMaterial)
+        }
     }
 
     // MARK: - Filas de métricas
@@ -79,31 +106,47 @@ struct HUDView: View {
             HStack(spacing: 6) {
                 Text(titulo)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(paleta.primaryText)
                 Spacer(minLength: 0)
                 Text(fraccion.map { String(format: "%.0f%%", $0 * 100) } ?? "—")
                     .font(.system(size: 11, design: .monospaced))
                     .monospacedDigit()
-                    .foregroundStyle(vieja ? .secondary : .primary)
+                    .foregroundStyle(vieja ? paleta.secondaryText : paleta.primaryText)
             }
-            ProgressView(value: fraccion ?? 0)
-                .progressViewStyle(.linear)
-                .tint(color(para: fraccion))
+            // Un `ProgressView` no deja teñir su carril, y con paletas opacas el
+            // carril del sistema desentona sobre el fondo del tema.
+            indicador(fraccion: fraccion)
             if let detalle {
                 Text(vieja ? "\(detalle)  ·  sin actualizar" : detalle)
                     .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(paleta.secondaryText)
                     .lineLimit(1)
             }
         }
         .opacity(vieja ? 0.55 : 1)
     }
 
-    /// Verde por debajo del 70 %, ámbar hasta el 90 %, rojo por encima.
+    private func indicador(fraccion: Double?) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(paleta.track)
+                Capsule()
+                    .fill(color(para: fraccion))
+                    // `max(0, min(1, …))` porque una fracción fuera de rango
+                    // dibujaría la barra más allá del carril.
+                    .frame(width: geo.size.width * max(0, min(1, fraccion ?? 0)))
+            }
+        }
+        .frame(height: 4)
+    }
+
+    /// Holgado por debajo del 70 %, justo hasta el 90 %, al límite por encima.
+    /// Qué color es cada tramo lo decide el tema.
     private func color(para fraccion: Double?) -> Color {
-        guard let fraccion else { return .gray }
-        if fraccion > 0.9 { return .red }
-        if fraccion > 0.7 { return .orange }
-        return .green
+        guard let fraccion else { return paleta.idle }
+        if fraccion > 0.9 { return paleta.high }
+        if fraccion > 0.7 { return paleta.medium }
+        return paleta.low
     }
 
     private func esVieja<T>(_ estado: MetricState<T>) -> Bool {
@@ -154,7 +197,7 @@ struct HUDView: View {
             filaPeriferico(
                 "Teclado",
                 valor: "\(bateria)%",
-                color: bateria < 20 ? .red : .secondary
+                color: bateria < 20 ? paleta.high : paleta.secondaryText
             )
         }
     }
@@ -165,6 +208,7 @@ struct HUDView: View {
         HStack(spacing: 6) {
             Text(titulo)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(paleta.primaryText)
             Spacer(minLength: 0)
             Text(valor)
                 .font(.system(size: 10, design: .monospaced))
@@ -181,11 +225,17 @@ struct HUDView: View {
     }
 
     private var colorDelMouse: Color {
-        guard let salud = model.snapshot.pointer.value else { return .red }
-        return salud.faults > 0 ? .orange : .green
+        guard let salud = model.snapshot.pointer.value else { return paleta.high }
+        return salud.faults > 0 ? paleta.medium : paleta.low
     }
 
     // MARK: - Menú
+
+    /// Horarios ofrecidos. Configurar horas exactas pide una ventana de ajustes
+    /// que esta app no tiene; tres presets cubren el caso real sin inventarla.
+    private var horarios: [(claro: Int, oscuro: Int)] {
+        [(6, 18), (7, 19), (8, 20)]
+    }
 
     @ViewBuilder
     private var menu: some View {
@@ -199,6 +249,44 @@ struct HUDView: View {
                     // La palomita indica que la métrica está visible.
                     Label(metrica.label,
                           systemImage: settings.isVisible(metrica) ? "checkmark" : "")
+                }
+            }
+        }
+        Menu("Tema") {
+            ForEach(Theme.all) { tema in
+                Button {
+                    settings.themeID = tema.id
+                } label: {
+                    Label(tema.name,
+                          systemImage: settings.themeID == tema.id ? "checkmark" : "")
+                }
+            }
+        }
+        Menu("Claro u oscuro") {
+            ForEach(AppearanceMode.allCases) { modo in
+                Button {
+                    settings.appearance = modo
+                } label: {
+                    Label(modo.label,
+                          systemImage: settings.appearance == modo ? "checkmark" : "")
+                }
+            }
+            if settings.appearance == .schedule {
+                Divider()
+                ForEach(horarios, id: \.claro) { horario in
+                    Button {
+                        settings.schedule = AppearanceSchedule(
+                            lightStartMinutes: horario.claro * 60,
+                            darkStartMinutes: horario.oscuro * 60
+                        )
+                    } label: {
+                        Label(
+                            "Claro de \(horario.claro):00 a \(horario.oscuro):00",
+                            systemImage: settings.schedule.lightStartMinutes == horario.claro * 60
+                                && settings.schedule.darkStartMinutes == horario.oscuro * 60
+                                ? "checkmark" : ""
+                        )
+                    }
                 }
             }
         }

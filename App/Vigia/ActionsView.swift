@@ -4,6 +4,8 @@ import VigiaCore
 /// La ventana de acciones: quién consume qué, y qué hacer al respecto.
 struct ActionsView: View {
     @ObservedObject var model: ActionsModel
+    @ObservedObject var settings: SettingsStore
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -19,6 +21,15 @@ struct ActionsView: View {
         }
         .onAppear { model.start() }
         .onDisappear { model.stop() }
+        // Esta ventana usa controles estándar de AppKit, así que no adopta la
+        // paleta del tema —pelearse con ellos daría un resultado peor que el
+        // del sistema—, pero sí tiene que obedecer el claro u oscuro elegido:
+        // si no, "siempre oscuro" dejaría el panel oscuro y esta ventana clara.
+        .preferredColorScheme(
+            settings.appearance == .system
+                ? nil
+                : (settings.isDark(systemDark: colorScheme == .dark) ? .dark : .light)
+        )
     }
 
     // MARK: - Procesos
