@@ -11,6 +11,7 @@
 		19215D900E92D7B51E962B0B /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123DB8ABBA73A9BDD3476E88 /* Theme.swift */; };
 		2CB798FDE7479DB71A58A826 /* VigiaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 156FFA95A4BF3D4A3E67C91C /* VigiaApp.swift */; };
 		6639B8468E7D52F194A51CD4 /* ActionsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BD5C777FAC25C21E9D2106E /* ActionsWindow.swift */; };
+		7281B16DC8B4243CFAFB3F47 /* HUDMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE81177215A27FA4A73FDA08 /* HUDMenu.swift */; };
 		8A28FEC59D9B2432C3A96E32 /* HUDModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9885355A1A778C11E77801 /* HUDModel.swift */; };
 		8CE413F4719E367341F36C09 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FE305288BF40A765F9B51E /* SettingsStore.swift */; };
 		8E8F94166DA96112E6796A76 /* VigiaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8210091A147D342028C3D546 /* VigiaCore */; };
@@ -32,6 +33,7 @@
 		BD9885355A1A778C11E77801 /* HUDModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDModel.swift; sourceTree = "<group>"; };
 		CE0922DB3EEAA7F978F806F9 /* vigia-monitor */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "vigia-monitor"; path = ..; sourceTree = SOURCE_ROOT; };
 		FA649BE4249243A25162EBF3 /* ActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionsView.swift; sourceTree = "<group>"; };
+		FE81177215A27FA4A73FDA08 /* HUDMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +79,7 @@
 				66CF52BCAB0D8AD965BEFCDB /* ActionsModel.swift */,
 				FA649BE4249243A25162EBF3 /* ActionsView.swift */,
 				2BD5C777FAC25C21E9D2106E /* ActionsWindow.swift */,
+				FE81177215A27FA4A73FDA08 /* HUDMenu.swift */,
 				BD9885355A1A778C11E77801 /* HUDModel.swift */,
 				337E3E3A3035E290F13D4FAF /* HUDPanel.swift */,
 				53F191D944CFC3FAFEAA9DD1 /* HUDView.swift */,
@@ -155,6 +158,7 @@
 				A45E7D3C593A599B485EF160 /* ActionsModel.swift in Sources */,
 				FF23BD7EE198D273C7ED609E /* ActionsView.swift in Sources */,
 				6639B8468E7D52F194A51CD4 /* ActionsWindow.swift in Sources */,
+				7281B16DC8B4243CFAFB3F47 /* HUDMenu.swift in Sources */,
 				8A28FEC59D9B2432C3A96E32 /* HUDModel.swift in Sources */,
 				07089F8CA823BC3E9E80B551 /* HUDPanel.swift in Sources */,
 				FC10D6142EC401EA858DE4A1 /* HUDView.swift in Sources */,

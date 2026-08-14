@@ -3,6 +3,10 @@ import SwiftUI
 
 /// Panel que flota sobre las demás ventanas sin robar el foco.
 final class HUDPanel: NSPanel {
+    /// Menú contextual del panel. Lo pone el delegado de la aplicación después
+    /// de construirlo, porque necesita el modelo y este panel no lo conoce.
+    var contextMenu: NSMenu?
+
     init<Content: View>(content: Content) {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 250, height: 220),
@@ -65,6 +69,16 @@ final class HUDPanel: NSPanel {
     private static func esVisible(origen: NSPoint, tamano: NSSize) -> Bool {
         let marco = NSRect(origin: origen, size: tamano)
         return NSScreen.screens.contains { $0.visibleFrame.intersects(marco) }
+    }
+
+    /// El clic derecho llega hasta aquí porque la vista de SwiftUI ya no
+    /// declara ningún menú propio; si lo hiciera, lo consumiría antes.
+    override func rightMouseDown(with event: NSEvent) {
+        guard let contextMenu else {
+            super.rightMouseDown(with: event)
+            return
+        }
+        NSMenu.popUpContextMenu(contextMenu, with: event, for: contentView ?? NSView())
     }
 
     // Un panel de utilidad no debe convertirse en la ventana clave ni

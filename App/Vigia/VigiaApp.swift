@@ -17,9 +17,14 @@ struct VigiaApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: HUDPanel?
     private let model = HUDModel()
+    /// Se guarda porque `NSMenu` no retiene a su delegado.
+    private var menuController: HUDMenuController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let panel = HUDPanel(content: HUDView(model: model))
+        let menuController = HUDMenuController(model: model)
+        panel.contextMenu = menuController.menu
+        self.menuController = menuController
         panel.colocar(en: model.savedOrigin)
         panel.orderFrontRegardless()
         self.panel = panel

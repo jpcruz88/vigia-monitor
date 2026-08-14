@@ -38,7 +38,6 @@ struct HUDView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(fondo)
         .opacity(settings.opacity)
-        .contextMenu { menu }
     }
 
     /// El tema "Sistema" usa el material translúcido, que deja ver el fondo de
@@ -227,77 +226,5 @@ struct HUDView: View {
     private var colorDelMouse: Color {
         guard let salud = model.snapshot.pointer.value else { return paleta.high }
         return salud.faults > 0 ? paleta.medium : paleta.low
-    }
-
-    // MARK: - Menú
-
-    /// Horarios ofrecidos. Configurar horas exactas pide una ventana de ajustes
-    /// que esta app no tiene; tres presets cubren el caso real sin inventarla.
-    private var horarios: [(claro: Int, oscuro: Int)] {
-        [(6, 18), (7, 19), (8, 20)]
-    }
-
-    @ViewBuilder
-    private var menu: some View {
-        Button("Ver consumo y actuar…") { model.showActions() }
-        Divider()
-        Menu("Mostrar") {
-            ForEach(MetricKind.allCases) { metrica in
-                Button {
-                    settings.toggle(metrica)
-                } label: {
-                    // La palomita indica que la métrica está visible.
-                    Label(metrica.label,
-                          systemImage: settings.isVisible(metrica) ? "checkmark" : "")
-                }
-            }
-        }
-        Menu("Tema") {
-            ForEach(Theme.all) { tema in
-                Button {
-                    settings.themeID = tema.id
-                } label: {
-                    Label(tema.name,
-                          systemImage: settings.themeID == tema.id ? "checkmark" : "")
-                }
-            }
-        }
-        Menu("Claro u oscuro") {
-            ForEach(AppearanceMode.allCases) { modo in
-                Button {
-                    settings.appearance = modo
-                } label: {
-                    Label(modo.label,
-                          systemImage: settings.appearance == modo ? "checkmark" : "")
-                }
-            }
-            if settings.appearance == .schedule {
-                Divider()
-                ForEach(horarios, id: \.claro) { horario in
-                    Button {
-                        settings.schedule = AppearanceSchedule(
-                            lightStartMinutes: horario.claro * 60,
-                            darkStartMinutes: horario.oscuro * 60
-                        )
-                    } label: {
-                        Label(
-                            "Claro de \(horario.claro):00 a \(horario.oscuro):00",
-                            systemImage: settings.schedule.lightStartMinutes == horario.claro * 60
-                                && settings.schedule.darkStartMinutes == horario.oscuro * 60
-                                ? "checkmark" : ""
-                        )
-                    }
-                }
-            }
-        }
-        Menu("Opacidad") {
-            Button("100 %") { settings.opacity = 1.0 }
-            Button("95 %") { settings.opacity = 0.95 }
-            Button("80 %") { settings.opacity = 0.8 }
-            Button("60 %") { settings.opacity = 0.6 }
-        }
-        Toggle("Arrancar con el sistema", isOn: $settings.launchAtLogin)
-        Divider()
-        Button("Salir de Vigía") { NSApplication.shared.terminate(nil) }
     }
 }
