@@ -43,12 +43,19 @@ targets:
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-        # Firma con identidad de desarrollador para que macOS reconozca
-        # siempre la misma app: con firma ad-hoc, el permiso de Monitoreo de
-        # Entrada habría que concederlo de nuevo tras cada compilación.
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: MS4534M938
-        CODE_SIGN_IDENTITY: Apple Development
+        # Firma ad-hoc por omisión: es lo único que compila sin una cuenta de
+        # desarrollador de Apple, así que cualquiera puede clonar el proyecto y
+        # construirlo. Un equipo fijo aquí haría fallar la compilación a todo
+        # el que no perteneciera a él.
+        #
+        # Tiene un coste que conviene saber: macOS identifica una app ad-hoc por
+        # el hash de su binario, así que cada recompilación es una app distinta
+        # para el sistema y hay que volver a conceder el permiso de
+        # Monitorización de entrada. Quien tenga cuenta puede evitarlo pasando
+        # su equipo:  VIGIA_TEAM=SU_EQUIPO ./rebuild.sh
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
         # El sandbox de macOS bloquea IOHIDManager, que es lo que necesita el
         # detector de trabones. Esta app no va a la Mac App Store.
         ENABLE_APP_SANDBOX: NO

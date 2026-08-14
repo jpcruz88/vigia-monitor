@@ -1,6 +1,14 @@
 #!/bin/bash
 # Recompila Vigía y la reinstala en /Applications.
 #
+# Por omisión firma ad-hoc, que es lo que permite compilar sin cuenta de
+# desarrollador de Apple. Si tienes una, pasar tu equipo evita tener que
+# reconceder el permiso de Monitorización de entrada en cada compilación:
+#
+#   VIGIA_TEAM=XXXXXXXXXX ./rebuild.sh
+#
+# El identificador del equipo está en developer.apple.com → Membership.
+#
 # Se reinstala en la misma ruta a propósito: macOS asocia el permiso de
 # Monitoreo de Entrada a la identidad y la ubicación de la app, así que
 # moverla obligaría a concederlo otra vez.
@@ -20,8 +28,21 @@ xcodegen generate
 
 echo
 echo "==> Compilando"
+
+# Sin equipo, la firma ad-hoc que trae el proyecto sirve tal cual y no hace
+# falta cuenta de Apple.
+FIRMA=()
+if [ -n "${VIGIA_TEAM:-}" ]; then
+  echo "    firmando con el equipo $VIGIA_TEAM"
+  FIRMA=(
+    CODE_SIGN_STYLE=Automatic
+    CODE_SIGN_IDENTITY="Apple Development"
+    DEVELOPMENT_TEAM="$VIGIA_TEAM"
+  )
+fi
+
 xcodebuild -project Vigia.xcodeproj -scheme Vigia \
-  -configuration Release -derivedDataPath build build \
+  -configuration Release -derivedDataPath build "${FIRMA[@]}" build \
   | grep -E "error:|warning:|BUILD" || true
 
 APP="$RAIZ/App/build/Build/Products/Release/Vigia.app"

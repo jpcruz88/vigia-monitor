@@ -45,8 +45,37 @@ el que sí se puede diagnosticar un dongle o un hub.
 
 ## Instalación
 
-Descarga el `.dmg` de la [última versión](https://github.com/jpcruz88/vigia-monitor/releases/latest),
-ábrelo y arrastra Vigía a Aplicaciones.
+**Vigía se distribuye como código fuente: la compilas tú.** No hay `.dmg` que
+descargar, y es deliberado — así lo que corre en tu Mac es exactamente lo que
+puedes leer en este repositorio, sin intermediarios.
+
+Necesitas macOS 14 o superior, Xcode y [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+(`brew install xcodegen`).
+
+```sh
+git clone https://github.com/jpcruz88/vigia-monitor.git
+cd vigia-monitor
+./rebuild.sh
+open -a Vigia
+```
+
+Eso es todo. **No hace falta una cuenta de desarrollador de Apple:** el proyecto
+firma en modo ad-hoc por omisión.
+
+### Si tienes cuenta de desarrollador
+
+Una app firmada ad-hoc es, para macOS, una app distinta en cada compilación,
+porque la identifica por el hash de su binario. Consecuencia práctica: **tendrás
+que volver a conceder el permiso de Monitorización de entrada cada vez que
+recompiles.** Con una cuenta de Apple eso se evita, pasando tu equipo:
+
+```sh
+VIGIA_TEAM=XXXXXXXXXX ./rebuild.sh
+```
+
+El identificador está en developer.apple.com → Membership. Nada más cambia.
+
+### El permiso de Monitorización de entrada
 
 La primera vez pedirá el permiso de **Monitorización de entrada**, que es lo que
 necesita para medir el ratón. Sobre esto conviene ser explícito:
@@ -113,12 +142,10 @@ que las salvaguardas son parte del diseño y no un añadido:
 
 ---
 
-## Compilar desde el código
-
-Requiere macOS 14 o superior, Xcode y [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+## Desarrollo
 
 ```sh
-swift test     # 60 pruebas
+swift test     # 60 pruebas, sin interfaz ni permisos
 ./rebuild.sh   # compila e instala en /Applications
 ```
 
@@ -137,15 +164,19 @@ App/Vigia/             Interfaz SwiftUI y AppKit
 La regla es que todo lo que se pueda probar sin pantalla vive en `VigiaCore`. Si
 una decisión resultó equivocada una vez, se muda ahí con una prueba que la fije.
 
-### Publicar una versión
+### Distribuir binarios
+
+No hace falta para usar Vigía, pero el proyecto lo trae montado por si algún día
+quieres repartir un `.dmg`:
 
 ```sh
 ./release.sh 1.0.1 --publish
 ```
 
 Compila firmando con Developer ID, verifica la firma y el tiempo de ejecución
-reforzado, empaqueta el `.dmg`, notariza, grapa el comprobante y lo sube. El
-propio script explica los dos requisitos que hay que preparar una sola vez.
+reforzado, empaqueta, notariza ante Apple, grapa el comprobante y publica el
+release. Requiere un certificado Developer ID y credenciales de notarización; el
+propio script explica cómo prepararlos y falla con instrucciones si faltan.
 
 ---
 
@@ -159,7 +190,8 @@ propio script explica los dos requisitos que hay que preparar una sola vez.
 - **No está en la Mac App Store, y no puede estarlo.** El sandbox obligatorio
   impide cerrar procesos ajenos, borrar cachés de otras apps y usar
   `IOHIDManager`. Es incompatibilidad de fondo, no una decisión.
-- **No hay actualizaciones automáticas** todavía.
+- **No hay binarios precompilados.** Hay que compilar desde el código, lo que
+  deja fuera a quien no tenga Xcode.
 
 ---
 
