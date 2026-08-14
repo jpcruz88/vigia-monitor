@@ -30,7 +30,7 @@ targets:
         # Sin icono en el Dock ni en Cmd-Tab: es una utilidad que se mira, no
         # una aplicación con la que se trabaja.
         LSUIElement: true
-        NSHumanReadableCopyright: ""
+        NSHumanReadableCopyright: "jpsoftware.dev"
         NSInputMonitoringUsageDescription: >-
           Vigía mide los tiempos entre reportes del mouse para detectar
           pérdidas de señal del receptor inalámbrico. No registra qué teclas

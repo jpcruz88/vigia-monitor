@@ -153,6 +153,15 @@ struct ActionsView: View {
                     .help("Rara vez ayuda: vacía la caché de disco y el sistema "
                           + "tiene que volver a leerla. Requiere contraseña.")
             }
+
+            HStack(spacing: 0) {
+                Spacer()
+                Text("Desarrollado por ")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Link(About.developer, destination: About.url)
+                    .font(.caption2)
+            }
         }
         .padding(10)
     }

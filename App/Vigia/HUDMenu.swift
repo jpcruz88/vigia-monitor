@@ -51,6 +51,9 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
         menu.addItem(arranque)
 
         menu.addItem(.separator())
+        menu.addItem(item("Acerca de Vigía…", #selector(acercaDe)))
+        menu.addItem(item(About.developer, #selector(abrirSitio)))
+        menu.addItem(.separator())
         menu.addItem(item("Salir de Vigía", #selector(salir)))
     }
 
@@ -148,6 +151,10 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
     @objc private func alternarArranque() {
         settings.launchAtLogin.toggle()
     }
+
+    @objc private func acercaDe() { About.showPanel() }
+
+    @objc private func abrirSitio() { About.openSite() }
 
     @objc private func salir() { NSApplication.shared.terminate(nil) }
 

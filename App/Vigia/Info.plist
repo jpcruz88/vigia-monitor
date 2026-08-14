@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string></string>
+	<string>jpsoftware.dev</string>
 	<key>NSInputMonitoringUsageDescription</key>
 	<string>Vigía mide los tiempos entre reportes del mouse para detectar pérdidas de señal del receptor inalámbrico. No registra qué teclas pulsas ni a dónde apuntas.</string>
 </dict>
