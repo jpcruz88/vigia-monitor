@@ -82,3 +82,24 @@ func perifericoLeeBateria() async throws {
         #expect(bateria >= 0 && bateria <= 100)
     }
 }
+
+@Test("PeripheralSampler distingue teclado y mouse e ignora auriculares y desconectados")
+func perifericoDistingueDispositivos() {
+    let json = """
+    {"SPBluetoothDataType":[{
+      "device_connected":[
+        {"Teclado K":{"device_minorType":"Keyboard","device_batteryLevelMain":"85%"}},
+        {"Ratón M":{"device_minorType":"Mouse","device_batteryLevelMain":40}},
+        {"AirPods":{"device_minorType":"Headphones","device_batteryLevelLeft":"100%",
+                    "device_batteryLevelCase":"70%"}}
+      ],
+      "device_not_connected":[
+        {"Otro teclado":{"device_minorType":"Keyboard","device_batteryLevelMain":"10%"}}
+      ]}]}
+    """
+    let m = PeripheralSampler.parse(Data(json.utf8))
+    #expect(m.keyboardName == "Teclado K")
+    #expect(m.keyboardBatteryPercent == 85)
+    #expect(m.mouseName == "Ratón M")
+    #expect(m.mouseBatteryPercent == 40)
+}

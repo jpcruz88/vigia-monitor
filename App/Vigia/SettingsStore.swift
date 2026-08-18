@@ -2,7 +2,7 @@ import Foundation
 import ServiceManagement
 import VigiaCore
 
-/// Las métricas que el panel puede mostrar u ocultar.
+/// Las métricas que la barra de menús puede mostrar u ocultar.
 enum MetricKind: String, CaseIterable, Identifiable {
     case cpu, memory, gpu, disk, pointer, keyboard
 
@@ -23,9 +23,6 @@ enum MetricKind: String, CaseIterable, Identifiable {
 /// Ajustes que sobreviven al reinicio.
 @MainActor
 final class SettingsStore: ObservableObject {
-    @Published var opacity: Double {
-        didSet { UserDefaults.standard.set(opacity, forKey: "hud.opacity") }
-    }
     @Published var launchAtLogin: Bool {
         didSet { aplicarArranque() }
     }
@@ -38,9 +35,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var themeID: String {
-        didSet { UserDefaults.standard.set(themeID, forKey: "hud.theme") }
-    }
     @Published var appearance: AppearanceMode {
         didSet {
             UserDefaults.standard.set(appearance.rawValue, forKey: "hud.appearance")
@@ -56,23 +50,18 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Lo que dice el horario ahora mismo. Se recalcula con un reloj porque
-    /// nada más avisa de que pasó la hora: sin él, el panel se quedaría con el
-    /// color del momento en que se abrió hasta que algo lo redibujara.
+    /// nada más avisa de que pasó la hora: sin él, la ventana de acciones se
+    /// quedaría con el color del momento en que se abrió hasta que algo la
+    /// redibujara.
     @Published private(set) var scheduleSaysDark = false
-
-    var theme: Theme { Theme.named(themeID) }
 
     private var reloj: Task<Void, Never>?
 
     init() {
-        let guardada = UserDefaults.standard.double(forKey: "hud.opacity")
-        // Cero significa que nunca se ha guardado nada.
-        opacity = guardada == 0 ? 0.95 : guardada
         launchAtLogin = SMAppService.mainApp.status == .enabled
         let ocultas = UserDefaults.standard.stringArray(forKey: "hud.hidden") ?? []
         hidden = Set(ocultas.compactMap(MetricKind.init(rawValue:)))
 
-        themeID = UserDefaults.standard.string(forKey: "hud.theme") ?? Theme.sistema.id
         appearance = UserDefaults.standard.string(forKey: "hud.appearance")
             .flatMap(AppearanceMode.init(rawValue:)) ?? .system
 

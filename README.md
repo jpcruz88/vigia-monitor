@@ -2,8 +2,8 @@
 
 Monitor de sistema para macOS que además **te deja actuar sobre lo que encuentra**.
 
-Un panel flotante muestra CPU, memoria, GPU, disco y la salud de tus periféricos.
-Cuando algo va mal, una segunda ventana te dice **qué aplicación es la culpable** y
+Vive en la barra de menús: ahí mismo, en texto y en vivo, ves CPU, memoria, GPU,
+disco y la salud de tus periféricos. Cuando algo va mal, una segunda ventana te dice **qué aplicación es la culpable** y
 te ofrece cerrarla, bajarle la prioridad o recuperar espacio en disco.
 
 Desarrollado por [jpsoftware.dev](https://jpsoftware.dev).
@@ -59,6 +59,11 @@ cd vigia-monitor
 open -a Vigia
 ```
 
+Como la app se firma ad-hoc, macOS la trata como una app nueva en cada
+compilación; `rebuild.sh` reinicia por ti el permiso de Monitorización de
+entrada para que la copia nueva lo vuelva a pedir. Con cuenta de Apple,
+`VIGIA_TEAM=TUEQUIPO ./rebuild.sh` mantiene la firma estable y se lo ahorra.
+
 Eso es todo. **No hace falta una cuenta de desarrollador de Apple:** el proyecto
 firma en modo ad-hoc por omisión.
 
@@ -77,8 +82,8 @@ El identificador está en developer.apple.com → Membership. Nada más cambia.
 
 ### El permiso de Monitorización de entrada
 
-La primera vez pedirá el permiso de **Monitorización de entrada**, que es lo que
-necesita para medir el ratón. Sobre esto conviene ser explícito:
+La primera vez, el menú ofrece **Activar detección de trabones…**, que abre el
+ajuste de **Monitorización de entrada** que necesita para medir el ratón. Sobre esto conviene ser explícito:
 
 > Vigía mide **únicamente los tiempos entre reportes** del ratón. No registra qué
 > teclas pulsas ni a dónde apuntas. El código que lo hace está en
@@ -86,7 +91,7 @@ necesita para medir el ratón. Sobre esto conviene ser explícito:
 > y son unas 150 líneas: puedes leerlo entero en cinco minutos.
 
 macOS **no aplica ese permiso a un proceso que ya está corriendo**, así que
-Vigía te ofrecerá reiniciarse. Es una limitación del sistema, no un descuido.
+tras concederlo el menú ofrecerá **Reiniciar para medir el mouse**. Es una limitación del sistema, no un descuido.
 
 El resto de la app funciona sin conceder nada.
 
@@ -94,15 +99,22 @@ El resto de la app funciona sin conceder nada.
 
 ## Uso
 
-El panel flotante se arrastra a donde quieras. **Clic derecho** abre el menú:
+En la barra de menús aparece algo como
+
+```
+CPU 23%  Memoria 61%  GPU 4%  Disco 73%  Mouse estable  Teclado 80%
+```
+
+Todo se lee de un vistazo sin abrir nada. La batería del teclado y del mouse
+aparece cuando van por **Bluetooth**; un mouse con su propio receptor USB
+("2.4G") no informa de su batería a macOS por ninguna vía, así que ahí solo se
+ve la salud de la señal. Un **clic** sobre ello despliega el menú:
 
 | Opción | Qué hace |
 |---|---|
 | **Ver consumo y actuar…** | Abre la ventana de culpables y acciones |
-| **Mostrar** | Enciende o apaga cada métrica del panel |
-| **Tema** | Sistema, Grafito, Ámbar, Solarizado o Neón |
-| **Claro u oscuro** | Seguir a macOS, fijo, o por horario propio |
-| **Opacidad** | Del 60 % al 100 % |
+| **Mostrar** | Enciende o apaga cada métrica de la barra |
+| **Claro u oscuro** | Seguir a macOS, fijo, o por horario propio (ventana de acciones) |
 | **Arrancar con el sistema** | Registra Vigía como ítem de inicio de sesión |
 
 ### Las acciones

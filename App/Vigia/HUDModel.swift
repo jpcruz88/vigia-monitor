@@ -3,11 +3,11 @@ import SwiftUI
 import AppKit
 import VigiaCore
 
-/// Une el motor con la vista y gobierna los ritmos de refresco.
+/// Une el motor con la barra de menús y gobierna los ritmos de refresco.
 ///
 /// Vive en el actor principal porque `PointerHealthMonitor` exige que
-/// `start()` y `stop()` se llamen siempre desde el mismo hilo, y porque la
-/// vista lee sus propiedades publicadas.
+/// `start()` y `stop()` se llamen siempre desde el mismo hilo, y porque el
+/// ítem de la barra lee sus propiedades publicadas.
 @MainActor
 final class HUDModel: ObservableObject {
     @Published private(set) var snapshot: SystemSnapshot = .empty
@@ -30,21 +30,6 @@ final class HUDModel: ObservableObject {
     private var ultimaSalud: PointerHealth?
     private var ultimaSaludRecibida = Date.distantPast
     private var mouseDisponible = true
-
-    private static let claveOrigen = "hud.origin"
-
-    /// `nil` la primera vez: entonces el panel elige una esquina visible por su
-    /// cuenta, que no puede decidirse aquí porque depende de su altura final.
-    var savedOrigin: NSPoint? {
-        guard let guardado = UserDefaults.standard.string(forKey: Self.claveOrigen) else {
-            return nil
-        }
-        return NSPointFromString(guardado)
-    }
-
-    func saveOrigin(_ punto: NSPoint) {
-        UserDefaults.standard.set(NSStringFromPoint(punto), forKey: Self.claveOrigen)
-    }
 
     // MARK: - Ciclo de vida
 
@@ -87,15 +72,13 @@ final class HUDModel: ObservableObject {
         ultimaSaludRecibida = .distantPast
     }
 
-    /// Los ajustes viven aquí, no dentro de la vista, porque el panel y la
-    /// ventana de acciones tienen que compartir el mismo objeto: dos instancias
-    /// leerían los mismos valores guardados pero no se enterarían de los
-    /// cambios de la otra, y elegir "siempre oscuro" dejaría una de las dos
-    /// ventanas con el aspecto anterior.
+    /// Los ajustes viven aquí porque la barra, el menú y la ventana de acciones
+    /// tienen que compartir el mismo objeto: dos instancias leerían los mismos
+    /// valores guardados pero no se enterarían de los cambios de la otra.
     let settings = SettingsStore()
 
-    /// El controlador vive aquí para que la ventana sobreviva al menú
-    /// contextual que la invocó.
+    /// El controlador vive aquí para que la ventana sobreviva al menú que la
+    /// invocó.
     private lazy var actionsWindow = ActionsWindowController(settings: settings)
 
     func showActions() {

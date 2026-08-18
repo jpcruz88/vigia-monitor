@@ -1,8 +1,18 @@
 import Foundation
 
-public struct PeripheralMetrics: Sendable {
+public struct PeripheralMetrics: Sendable, Equatable {
     public let keyboardName: String?
     public let keyboardBatteryPercent: Int?
+    public let mouseName: String?
+    public let mouseBatteryPercent: Int?
+
+    public init(keyboardName: String? = nil, keyboardBatteryPercent: Int? = nil,
+                mouseName: String? = nil, mouseBatteryPercent: Int? = nil) {
+        self.keyboardName = keyboardName
+        self.keyboardBatteryPercent = keyboardBatteryPercent
+        self.mouseName = mouseName
+        self.mouseBatteryPercent = mouseBatteryPercent
+    }
 }
 
 /// Lee el estado de los periféricos Bluetooth.
@@ -10,6 +20,10 @@ public struct PeripheralMetrics: Sendable {
 /// La batería no está expuesta en IORegistry: la única fuente es
 /// `system_profiler`, que lanza un proceso y tarda segundos. Por eso este
 /// muestreador corre cada cinco minutos y siempre con límite de tiempo.
+///
+/// Solo ve dispositivos **Bluetooth**. Un mouse o teclado con receptor USB
+/// propio (los "2.4G") no informa de su batería a macOS por ninguna vía, así
+/// que para esos no hay dato posible.
 public struct PeripheralSampler: Sendable {
     private let command: String
     private let arguments: [String]
@@ -42,36 +56,72 @@ public struct PeripheralSampler: Sendable {
         }
     }
 
-    /// Busca de forma recursiva el primer dispositivo con nivel de batería.
+    /// Recorre los dispositivos conectados y se queda con la batería del
+    /// teclado y la del mouse, reconocidos por su tipo Bluetooth. Reconocerlos
+    /// por tipo importa: "el primero con batería" podía ser unos auriculares.
+    ///
     /// La forma exacta del JSON de `system_profiler` cambia entre versiones de
-    /// macOS, así que se recorre el árbol en vez de asumir una ruta fija.
+    /// macOS, así que se recorre el árbol en vez de asumir una ruta fija; lo
+    /// que sí es estable es que cada dispositivo es un diccionario cuya clave
+    /// es su nombre y que trae `device_minorType`.
     static func parse(_ datos: Data) -> PeripheralMetrics {
         guard let raiz = try? JSONSerialization.jsonObject(with: datos) else {
-            return PeripheralMetrics(keyboardName: nil, keyboardBatteryPercent: nil)
+            return PeripheralMetrics()
         }
-        var encontrado: (String, Int)?
+        var teclado: (String, Int)?
+        var mouse: (String, Int)?
 
-        func recorrer(_ nodo: Any, nombrePadre: String?) {
-            if encontrado != nil { return }
+        func recorrer(_ nodo: Any, dentroDeDesconectados: Bool) {
             if let dicc = nodo as? [String: Any] {
                 for (clave, valor) in dicc {
-                    if clave.lowercased().contains("battery"),
-                       let porcentaje = Self.porcentaje(de: valor) {
-                        encontrado = (nombrePadre ?? "desconocido", porcentaje)
-                        return
+                    // Los desconectados también listan batería (la última
+                    // conocida), y no sirve de nada mostrarla.
+                    let desconectado = dentroDeDesconectados
+                        || clave.lowercased().contains("not_connected")
+                    if !desconectado,
+                       let dispositivo = valor as? [String: Any],
+                       let tipo = dispositivo["device_minorType"] as? String,
+                       let porcentaje = Self.bateriaPrincipal(de: dispositivo) {
+                        switch tipo.lowercased() {
+                        case "keyboard": teclado = teclado ?? (clave, porcentaje)
+                        case "mouse": mouse = mouse ?? (clave, porcentaje)
+                        default: break
+                        }
                     }
-                    recorrer(valor, nombrePadre: dicc["_name"] as? String ?? clave)
+                    recorrer(valor, dentroDeDesconectados: desconectado)
                 }
             } else if let lista = nodo as? [Any] {
-                for elemento in lista { recorrer(elemento, nombrePadre: nombrePadre) }
+                for elemento in lista {
+                    recorrer(elemento, dentroDeDesconectados: dentroDeDesconectados)
+                }
             }
         }
-        recorrer(raiz, nombrePadre: nil)
+        recorrer(raiz, dentroDeDesconectados: false)
 
         return PeripheralMetrics(
-            keyboardName: encontrado?.0,
-            keyboardBatteryPercent: encontrado?.1
+            keyboardName: teclado?.0,
+            keyboardBatteryPercent: teclado?.1,
+            mouseName: mouse?.0,
+            mouseBatteryPercent: mouse?.1
         )
+    }
+
+    /// La batería "principal" del dispositivo. Los AirPods traen izquierda,
+    /// derecha y estuche; un teclado o un mouse solo traen esta.
+    private static func bateriaPrincipal(de dispositivo: [String: Any]) -> Int? {
+        if let valor = dispositivo["device_batteryLevelMain"] {
+            return porcentaje(de: valor)
+        }
+        // Versiones viejas usaban otra clave; cualquier "battery" que no sea
+        // de estuche u oreja sirve.
+        for (clave, valor) in dispositivo {
+            let k = clave.lowercased()
+            if k.contains("battery"), !k.contains("case"), !k.contains("left"),
+               !k.contains("right"), let p = porcentaje(de: valor) {
+                return p
+            }
+        }
+        return nil
     }
 
     /// Acepta tanto `85` como `"85%"`, que ambos aparecen según la versión.

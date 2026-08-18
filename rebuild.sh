@@ -42,7 +42,7 @@ if [ -n "${VIGIA_TEAM:-}" ]; then
 fi
 
 xcodebuild -project Vigia.xcodeproj -scheme Vigia \
-  -configuration Release -derivedDataPath build "${FIRMA[@]}" build \
+  -configuration Release -derivedDataPath build ${FIRMA[@]+"${FIRMA[@]}"} build \
   | grep -E "error:|warning:|BUILD" || true
 
 APP="$RAIZ/App/build/Build/Products/Release/Vigia.app"
@@ -59,6 +59,18 @@ sleep 1
 rm -rf "$DESTINO/Vigia.app"
 cp -R "$APP" "$DESTINO/"
 codesign --verify --strict "$DESTINO/Vigia.app"
+
+# Con firma ad-hoc, macOS liga el permiso de Monitorización de entrada al hash
+# del binario: tras recompilar, la entrada de Ajustes sigue "activada" pero
+# apunta a la app anterior, así que la nueva se ve denegada y —como la entrada
+# ya existe— ni siquiera vuelve a pedir el permiso. Borrarla obliga a pedirlo
+# de nuevo al abrir. Con equipo propio la firma es estable y esto sobra.
+if [ -z "${VIGIA_TEAM:-}" ]; then
+  echo
+  echo "==> Reiniciando el permiso de Monitorización de entrada (firma ad-hoc)"
+  tccutil reset ListenEvent com.jpcruz.vigia >/dev/null 2>&1 || true
+  echo "    al abrir Vigía volverá a pedirlo; actívalo y elige 'Reiniciar para medir el mouse'"
+fi
 
 echo
 echo "Listo. Ábrela con:  open -a Vigia"

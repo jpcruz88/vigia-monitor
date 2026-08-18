@@ -1,22 +1,16 @@
 import AppKit
 import VigiaCore
 
-/// Construye y atiende el menú contextual del panel.
+/// Construye y atiende el menú del ítem de la barra.
 ///
-/// Es un `NSMenu` de AppKit y no un `.contextMenu` de SwiftUI por una razón
-/// concreta: el panel republica sus métricas cada segundo, así que SwiftUI
-/// reconstruye la vista —y con ella el menú adosado— a ese mismo ritmo. Un menú
-/// abierto se cerraba solo antes de que diera tiempo a entrar en un submenú.
-///
-/// Un `NSMenu` no depende del ciclo de redibujado: mientras está desplegado,
-/// AppKit toma el control del bucle de eventos y el menú sobrevive a cualquier
-/// actualización del panel que ocurra por debajo.
+/// Se reconstruye cada vez que se despliega, así que las palomitas y los
+/// avisos del mouse siempre reflejan el estado actual sin observar nada.
 @MainActor
 final class HUDMenuController: NSObject, NSMenuDelegate {
     let menu = NSMenu()
 
-    /// `unowned` porque el modelo es dueño de este controlador a través del
-    /// panel: una referencia fuerte de vuelta cerraría el ciclo.
+    /// `unowned` porque el delegado de la app es dueño del modelo y de este
+    /// controlador: una referencia fuerte de vuelta cerraría el ciclo.
     private unowned let model: HUDModel
     private var settings: SettingsStore { model.settings }
 
@@ -41,10 +35,23 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
 
         menu.addItem(item("Ver consumo y actuar…", #selector(abrirAcciones)))
         menu.addItem(.separator())
+
+        // Sin ventana propia, el permiso del mouse solo se puede pedir desde
+        // aquí. macOS solo entrega eventos HID a un proceso arrancado ya con
+        // el permiso, así que tras concederlo hace falta reiniciar.
+        switch model.pointerStage {
+        case .needsGrant:
+            menu.addItem(item("Activar detección de trabones…", #selector(pedirPermiso)))
+            menu.addItem(.separator())
+        case .needsRestart:
+            menu.addItem(item("Reiniciar para medir el mouse", #selector(reiniciar)))
+            menu.addItem(.separator())
+        case .measuring:
+            break
+        }
+
         menu.addItem(submenu("Mostrar", construir: metricas))
-        menu.addItem(submenu("Tema", construir: temas))
         menu.addItem(submenu("Claro u oscuro", construir: apariencia))
-        menu.addItem(submenu("Opacidad", construir: opacidades))
 
         let arranque = item("Arrancar con el sistema", #selector(alternarArranque))
         arranque.state = settings.launchAtLogin ? .on : .off
@@ -64,15 +71,6 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
             let entrada = item(metrica.label, #selector(alternarMetrica))
             entrada.representedObject = metrica.rawValue
             entrada.state = settings.isVisible(metrica) ? .on : .off
-            sub.addItem(entrada)
-        }
-    }
-
-    private func temas(_ sub: NSMenu) {
-        for tema in Theme.all {
-            let entrada = item(tema.name, #selector(elegirTema))
-            entrada.representedObject = tema.id
-            entrada.state = settings.themeID == tema.id ? .on : .off
             sub.addItem(entrada)
         }
     }
@@ -101,31 +99,18 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func opacidades(_ sub: NSMenu) {
-        for valor in [1.0, 0.95, 0.8, 0.6] {
-            let entrada = item("\(Int(valor * 100)) %", #selector(elegirOpacidad))
-            entrada.representedObject = valor
-            // Comparar decimales con `==` funciona aquí porque los valores
-            // guardados vienen de esta misma lista, sin ninguna operación por
-            // medio que pudiera introducir error.
-            entrada.state = settings.opacity == valor ? .on : .off
-            sub.addItem(entrada)
-        }
-    }
-
     // MARK: - Acciones
 
     @objc private func abrirAcciones() { model.showActions() }
+
+    @objc private func pedirPermiso() { model.openInputMonitoringSettings() }
+
+    @objc private func reiniciar() { model.restartApp() }
 
     @objc private func alternarMetrica(_ sender: NSMenuItem) {
         guard let bruto = sender.representedObject as? String,
               let metrica = MetricKind(rawValue: bruto) else { return }
         settings.toggle(metrica)
-    }
-
-    @objc private func elegirTema(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        settings.themeID = id
     }
 
     @objc private func elegirModo(_ sender: NSMenuItem) {
@@ -141,11 +126,6 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
             lightStartMinutes: horario.claro * 60,
             darkStartMinutes: horario.oscuro * 60
         )
-    }
-
-    @objc private func elegirOpacidad(_ sender: NSMenuItem) {
-        guard let valor = sender.representedObject as? Double else { return }
-        settings.opacity = valor
     }
 
     @objc private func alternarArranque() {
