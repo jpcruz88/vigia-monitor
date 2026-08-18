@@ -45,9 +45,10 @@ final class HUDModel: ObservableObject {
         tareas.append(bucle(cada: .seconds(30)) { [engine] in
             await engine.refreshDisk()
         })
-        // `system_profiler` lanza un proceso y tarda segundos: cada cinco
-        // minutos es lo más seguido que tiene sentido llamarlo.
-        tareas.append(bucle(cada: .seconds(300)) { [engine] in
+        // `system_profiler SPBluetoothDataType` está medido en ~0,12 s, no en
+        // segundos como se supuso al principio: cada minuto es barato y evita
+        // que un teclado que se durmió tarde cinco en volver a la barra.
+        tareas.append(bucle(cada: .seconds(60)) { [engine] in
             await engine.refreshPeripherals()
         })
     }
@@ -83,6 +84,17 @@ final class HUDModel: ObservableObject {
 
     func showActions() {
         actionsWindow.show()
+    }
+
+    /// Fuerza un muestreo de periféricos ya. Lo pide el menú al desplegarse:
+    /// es justo cuando el usuario mira, y así el dato no depende de dónde caiga
+    /// el ciclo. Es también la vía de recuperación si el bucle dejara de
+    /// entregar, que es el fallo que se vio una vez y no se pudo reproducir.
+    func refreshPeripheralsNow() {
+        Task { [weak self, engine] in
+            await engine.refreshPeripherals()
+            await self?.publicar()
+        }
     }
 
     func openInputMonitoringSettings() {

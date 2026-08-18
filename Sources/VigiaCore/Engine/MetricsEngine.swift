@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Coordina los muestreadores, aísla sus fallos y publica un snapshot.
 ///
@@ -12,6 +13,13 @@ public actor MetricsEngine {
     private let gpu: GPUSampler
     private let disk: DiskSampler
     private let peripherals: PeripheralSampler
+    private var peripheralMemory = PeripheralMemory()
+
+    /// Registro del sistema. Existe para un fallo concreto que no se pudo
+    /// reproducir: la batería del teclado desapareció de la barra durante
+    /// horas con el dispositivo conectado. Sin rastro no hay diagnóstico.
+    private static let log = Logger(subsystem: "dev.jpsoftware.vigia",
+                                    category: "perifericos")
 
     public init(
         memory: MemorySampler,
@@ -70,12 +78,16 @@ public actor MetricsEngine {
         apply(&snapshot.disk) { try disk.sample() }
     }
 
-    /// El muestreo de periféricos lanza un proceso externo que tarda
-    /// segundos. Se espera **fuera** del aislamiento del actor: `sample()` es
-    /// `async` y `PeripheralSampler` es una `struct` `Sendable`, así que la
-    /// llamada no corre en el ejecutor del actor y la suspensión lo deja
-    /// libre para seguir atendiendo lecturas del snapshot. Muestrear dentro
-    /// del aislamiento congelaba el panel entero hasta diez segundos.
+    /// El muestreo de periféricos lanza un proceso externo. Se espera **fuera**
+    /// del aislamiento del actor: `sample()` es `async` y `PeripheralSampler`
+    /// es una `struct` `Sendable`, así que la llamada no corre en el ejecutor
+    /// del actor y la suspensión lo deja libre para seguir atendiendo lecturas
+    /// del snapshot. Muestrear dentro del aislamiento congelaba la interfaz
+    /// entera hasta diez segundos.
+    ///
+    /// El resultado pasa por `PeripheralMemory`: una muestra sin baterías no
+    /// borra lo último que se supo, porque casi siempre significa que el
+    /// dispositivo se durmió, no que se quedara sin pila.
     public func refreshPeripherals() async {
         let resultado: Result<PeripheralMetrics, Error>
         do {
@@ -84,7 +96,21 @@ public actor MetricsEngine {
             resultado = .failure(error)
         }
         // De vuelta en el actor, ya con el resultado en la mano.
-        apply(&snapshot.peripherals) { try resultado.get() }
+        switch resultado {
+        case .success(let fresca):
+            if fresca.keyboardBatteryPercent == nil, fresca.mouseBatteryPercent == nil {
+                // Se registra porque es la pista que hay que mirar si el dato
+                // vuelve a desaparecer de la barra sin explicación.
+                Self.log.notice("muestreo de periféricos sin ninguna batería")
+            }
+            snapshot.peripherals = .ok(peripheralMemory.merge(fresca))
+        case .failure(let error):
+            Self.log.error("""
+                muestreo de periféricos falló: \
+                \(String(describing: error), privacy: .public)
+                """)
+            degrade(&snapshot.peripherals, reason: String(describing: error))
+        }
     }
 
     public func refreshAll() async {

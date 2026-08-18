@@ -103,3 +103,40 @@ func perifericoDistingueDispositivos() {
     #expect(m.mouseName == "Ratón M")
     #expect(m.mouseBatteryPercent == 40)
 }
+
+@Test("La memoria de periféricos conserva la última batería de un teclado dormido")
+func memoriaConservaBateria() {
+    var memoria = PeripheralMemory(retention: 900)
+    let inicio = Date()
+    let vista = memoria.merge(
+        PeripheralMetrics(keyboardName: "K", keyboardBatteryPercent: 80), now: inicio)
+    #expect(vista.keyboardBatteryPercent == 80)
+
+    // El teclado se duerme: desaparece de la lista de conectados.
+    let dormido = memoria.merge(PeripheralMetrics(), now: inicio.addingTimeInterval(60))
+    #expect(dormido.keyboardBatteryPercent == 80)
+    #expect(dormido.keyboardName == "K")
+}
+
+@Test("La memoria de periféricos olvida un dispositivo ausente demasiado tiempo")
+func memoriaCaduca() {
+    var memoria = PeripheralMemory(retention: 900)
+    let inicio = Date()
+    _ = memoria.merge(PeripheralMetrics(keyboardName: "K", keyboardBatteryPercent: 80),
+                      now: inicio)
+    let tarde = memoria.merge(PeripheralMetrics(), now: inicio.addingTimeInterval(901))
+    #expect(tarde.keyboardBatteryPercent == nil)
+    #expect(tarde.keyboardName == nil)
+}
+
+@Test("Una lectura nueva sustituye a la recordada")
+func memoriaSeActualiza() {
+    var memoria = PeripheralMemory(retention: 900)
+    let inicio = Date()
+    _ = memoria.merge(PeripheralMetrics(keyboardName: "K", keyboardBatteryPercent: 80),
+                      now: inicio)
+    let nueva = memoria.merge(
+        PeripheralMetrics(keyboardName: "K", keyboardBatteryPercent: 45),
+        now: inicio.addingTimeInterval(60))
+    #expect(nueva.keyboardBatteryPercent == 45)
+}

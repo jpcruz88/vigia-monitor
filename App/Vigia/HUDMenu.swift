@@ -31,6 +31,9 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
     /// AppKit lo llama justo antes de desplegar el menú. Reconstruirlo aquí es
     /// lo que mantiene las palomitas al día sin tener que observar los ajustes.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // Muestrear aquí es lo que garantiza que la batería que se ve al abrir
+        // el menú sea de ahora y no de hasta un minuto atrás.
+        model.refreshPeripheralsNow()
         menu.removeAllItems()
 
         menu.addItem(item("Ver consumo y actuar…", #selector(abrirAcciones)))
