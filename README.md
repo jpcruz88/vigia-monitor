@@ -56,7 +56,7 @@ Necesitas macOS 14 o superior, Xcode y [XcodeGen](https://github.com/yonaskolb/X
 git clone https://github.com/jpcruz88/vigia-monitor.git
 cd vigia-monitor
 ./rebuild.sh
-open -a Vigia
+open /Applications/Vigia.app
 ```
 
 Como la app se firma ad-hoc, macOS la trata como una app nueva en cada

@@ -73,4 +73,7 @@ if [ -z "${VIGIA_TEAM:-}" ]; then
 fi
 
 echo
-echo "Listo. Ábrela con:  open -a Vigia"
+# La ruta va explícita: `open -a Vigia` puede resolver a la copia que quedó en
+# el directorio de compilación, y esa no tiene el permiso concedido a la
+# instalada —TCC lo liga también a la ubicación.
+echo "Listo. Ábrela con:  open $DESTINO/Vigia.app"
