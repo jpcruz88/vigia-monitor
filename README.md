@@ -102,13 +102,19 @@ El resto de la app funciona sin conceder nada.
 En la barra de menús aparece algo como
 
 ```
-CPU 23%  Memoria 61%  GPU 4%  Disco 73%  Mouse estable  Teclado 80%
+CPU 23%  Memoria 61%  GPU 4%  Disco 73%  Mouse estable
 ```
 
-Todo se lee de un vistazo sin abrir nada. La batería del teclado y del mouse
-aparece cuando van por **Bluetooth**; un mouse con su propio receptor USB
-("2.4G") no informa de su batería a macOS por ninguna vía, así que ahí solo se
-ve la salud de la señal. Un **clic** sobre ello despliega el menú:
+Todo se lee de un vistazo sin abrir nada.
+
+Las baterías se comportan distinto al resto: **solo salen a la barra cuando
+bajan del 20 %**. Un teclado Bluetooth marca 100 % durante semanas, y un número
+que nunca cambia enseña a ignorarlo justo para el día en que diga otra cosa. El
+nivel exacto está siempre en la cabecera del menú. Se leen por **Bluetooth**: un
+mouse con su propio receptor USB ("2.4G") no informa de su batería a macOS por
+ninguna vía, así que de ese solo se ve la salud de la señal.
+
+Un **clic** sobre la barra despliega el menú:
 
 | Opción | Qué hace |
 |---|---|

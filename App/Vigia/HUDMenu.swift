@@ -36,6 +36,7 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
         model.refreshPeripheralsNow()
         menu.removeAllItems()
 
+        baterias(menu)
         menu.addItem(item("Ver consumo y actuar…", #selector(abrirAcciones)))
         menu.addItem(.separator())
 
@@ -65,6 +66,27 @@ final class HUDMenuController: NSObject, NSMenuDelegate {
         menu.addItem(item(About.developer, #selector(abrirSitio)))
         menu.addItem(.separator())
         menu.addItem(item("Salir de Vigía", #selector(salir)))
+    }
+
+    /// Las baterías, arriba del todo y sin acción: la barra solo las muestra
+    /// cuando bajan del umbral, así que este es el sitio donde consultarlas
+    /// cuando todo va bien.
+    private func baterias(_ menu: NSMenu) {
+        guard let perifericos = model.snapshot.peripherals.value else { return }
+        var lineas: [String] = []
+        if settings.isVisible(.keyboard), let nivel = perifericos.keyboardBatteryPercent {
+            lineas.append("Teclado: \(nivel) %")
+        }
+        if settings.isVisible(.pointer), let nivel = perifericos.mouseBatteryPercent {
+            lineas.append("Mouse: \(nivel) %")
+        }
+        guard !lineas.isEmpty else { return }
+        for linea in lineas {
+            let entrada = NSMenuItem(title: linea, action: nil, keyEquivalent: "")
+            entrada.isEnabled = false
+            menu.addItem(entrada)
+        }
+        menu.addItem(.separator())
     }
 
     // MARK: - Submenús

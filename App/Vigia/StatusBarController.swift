@@ -10,6 +10,11 @@ import VigiaCore
 /// que hacer está a un clic.
 @MainActor
 final class StatusBarController {
+    /// Por debajo de este porcentaje la batería sale a la barra. Por encima no
+    /// dice nada accionable —un teclado BLE marca 100 % durante semanas— y solo
+    /// alarga el título. El valor exacto está siempre en el menú.
+    static let bateriaBaja = 20
+
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let model: HUDModel
     private var suscripciones: Set<AnyCancellable> = []
@@ -36,9 +41,11 @@ final class StatusBarController {
             .store(in: &suscripciones)
     }
 
-    /// Un resumen de lo visible: "CPU 23%  Memoria 61%  GPU 4%  Disco 73%  Mouse estable  Teclado 80%".
+    /// Un resumen de lo visible: "CPU 23%  Memoria 61%  GPU 4%  Disco 73%  Mouse estable".
     /// Solo aparecen las métricas activas en "Mostrar", así que la barra se
-    /// puede dejar tan escueta como se quiera.
+    /// puede dejar tan escueta como se quiera. Las baterías solo se suman
+    /// cuando están bajas: ver "Teclado 100 %" todos los días entrena a
+    /// ignorarlo justo para el día en que diga otra cosa.
     private func actualizarTitulo() {
         let s = model.snapshot
         let ajustes = model.settings
@@ -55,15 +62,17 @@ final class StatusBarController {
         if ajustes.isVisible(.disk) { agregar("Disco", s.disk.value?.usedFraction) }
         if ajustes.isVisible(.pointer) {
             // La batería solo llega por Bluetooth; con receptor USB no existe.
-            if let bateria = s.peripherals.value?.mouseBatteryPercent {
-                partes.append("Mouse \(textoDelMouse) · \(bateria)%")
+            if let bateria = s.peripherals.value?.mouseBatteryPercent,
+               bateria < Self.bateriaBaja {
+                partes.append("Mouse \(textoDelMouse) · batería \(bateria)%")
             } else {
                 partes.append("Mouse \(textoDelMouse)")
             }
         }
         if ajustes.isVisible(.keyboard),
-           let bateria = s.peripherals.value?.keyboardBatteryPercent {
-            partes.append("Teclado \(bateria)%")
+           let bateria = s.peripherals.value?.keyboardBatteryPercent,
+           bateria < Self.bateriaBaja {
+            partes.append("Teclado batería \(bateria)%")
         }
 
         let texto = partes.joined(separator: "  ")
