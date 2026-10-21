@@ -1,4 +1,4 @@
-"""Busca noticias recientes de IA, Claude redacta un post y se publica en LinkedIn.
+"""Busca noticias recientes de IA, Gemini redacta un post y se publica en LinkedIn.
 
 Uso:
     python publicar.py              # busca, redacta y publica
@@ -13,10 +13,13 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import anthropic
+import os
+
 import feedparser
 import requests
 from dotenv import load_dotenv
+from google import genai
+from google.genai import errors, types
 from pydantic import BaseModel
 
 import linkedin
@@ -34,6 +37,9 @@ FUENTES = [
     "https://blog.google/technology/ai/rss/",
     "https://huggingface.co/blog/feed.xml",
 ]
+
+# Modelo de Gemini. Se puede cambiar con GEMINI_MODEL en el .env.
+MODELO_POR_DEFECTO = "gemini-3.5-flash"
 
 HORAS_ATRAS = 48
 MAX_CANDIDATAS = 40
@@ -108,22 +114,19 @@ def redactar_post(noticias: list[dict]) -> Post:
         f"[{i}] {n['titulo']}\nFuente: {n['fuente']} · {n['fecha']:%Y-%m-%d}\n{n['resumen']}"
         for i, n in enumerate(noticias)
     )
-    cliente = anthropic.Anthropic()
-    respuesta = cliente.beta.messages.parse(
-        model="claude-opus-5-5",
-        max_tokens=16000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "medium"},
-        # Si el modelo rechaza la petición, la API la reintenta con otro modelo.
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-        system=INSTRUCCIONES,
-        messages=[{"role": "user", "content": f"Noticias de hoy:\n\n{lista}"}],
-        output_format=Post,
+    cliente = genai.Client()  # lee GEMINI_API_KEY del entorno
+    respuesta = cliente.models.generate_content(
+        model=os.environ.get("GEMINI_MODEL", MODELO_POR_DEFECTO),
+        contents=f"Noticias de hoy:\n\n{lista}",
+        config=types.GenerateContentConfig(
+            system_instruction=INSTRUCCIONES,
+            response_mime_type="application/json",
+            response_schema=Post,
+        ),
     )
-    if respuesta.stop_reason == "refusal" or respuesta.parsed_output is None:
-        raise RuntimeError(f"Claude no generó el post (stop_reason={respuesta.stop_reason})")
-    post = respuesta.parsed_output
+    post = respuesta.parsed
+    if not isinstance(post, Post):
+        raise RuntimeError(f"Gemini no generó el post: {respuesta.text!r}")
     if not 0 <= post.indice_noticia < len(noticias):
         raise RuntimeError(f"Índice de noticia fuera de rango: {post.indice_noticia}")
     return post
@@ -144,13 +147,16 @@ def main() -> int:
         return 0
     print(f"  {len(noticias)} noticias candidatas.")
 
-    print("Redactando el post con Claude...")
+    print("Redactando el post con Gemini...")
     try:
         post = redactar_post(noticias)
-    except anthropic.AuthenticationError:
-        print("Error: ANTHROPIC_API_KEY no es válida. Revisa tu archivo .env.", file=sys.stderr)
+    except errors.ClientError as e:
+        if e.code in (401, 403):
+            print("Error: GEMINI_API_KEY no es válida. Revisa tu archivo .env.", file=sys.stderr)
+        else:
+            print(f"Error de Gemini: {e}", file=sys.stderr)
         return 1
-    except (anthropic.APIError, RuntimeError) as e:
+    except (errors.APIError, ValueError, RuntimeError) as e:
         print(f"Error al redactar: {e}", file=sys.stderr)
         return 1
 
