@@ -1,4 +1,4 @@
-"""Busca noticias recientes de IA, Gemini redacta un post y se publica en LinkedIn.
+"""Busca noticias recientes de IA, Gemini redacta un resumen y se publica en LinkedIn.
 
 Uso:
     python publicar.py              # busca, redacta y publica
@@ -7,11 +7,13 @@ Uso:
 
 import argparse
 import calendar
+import difflib
 import json
 import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 import os
 
@@ -29,43 +31,75 @@ HISTORIAL = CARPETA / "publicadas.json"
 
 # Fuentes RSS de noticias de IA. Añade o quita las que quieras.
 FUENTES = [
+    # Actualidad y negocio
     "https://techcrunch.com/category/artificial-intelligence/feed/",
     "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
     "https://venturebeat.com/category/ai/feed/",
     "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+    "https://arstechnica.com/ai/feed/",
+    # Modelos y laboratorios
+    "https://the-decoder.com/feed/",
     "https://openai.com/news/rss.xml",
     "https://blog.google/technology/ai/rss/",
+    "https://deepmind.google/blog/rss.xml",
+    # Técnico
     "https://huggingface.co/blog/feed.xml",
+    "https://www.marktechpost.com/feed/",
+    "https://simonwillison.net/atom/everything/",
+    "https://developer.nvidia.com/blog/feed",
 ]
 
 # Modelo de Gemini. Se puede cambiar con GEMINI_MODEL en el .env.
 MODELO_POR_DEFECTO = "gemini-3.5-flash"
 
 HORAS_ATRAS = 48
-MAX_CANDIDATAS = 40
+MAX_CANDIDATAS = 80
+MIN_NOTICIAS, MAX_NOTICIAS = 5, 8
+MAX_CARACTERES = 3000  # límite de LinkedIn
 
-INSTRUCCIONES = """Eres el editor de la cuenta de LinkedIn de un profesional de la tecnología \
-hispanohablante. Recibes una lista de noticias recientes de inteligencia artificial.
+INSTRUCCIONES = f"""Eres el editor de la cuenta de LinkedIn de un profesional de la tecnología \
+hispanohablante. Cada día publica un resumen con las noticias de inteligencia artificial más \
+importantes. Recibes una lista de noticias recientes.
 
-1. Elige LA noticia más relevante e interesante para una audiencia profesional \
-(lanzamientos importantes, investigación con impacto, regulación, negocio). Evita rumores, \
-contenido promocional y noticias menores.
-2. Escribe un post en español para LinkedIn sobre ella:
-   - Un gancho en la primera línea que invite a seguir leyendo.
-   - 2 o 3 párrafos cortos: qué ha pasado y por qué importa.
-   - Una opinión o reflexión breve y una pregunta final para generar conversación.
-   - Entre 3 y 5 hashtags al final.
-   - Máximo 1.300 caracteres. Sin markdown (LinkedIn no lo muestra). Emojis con moderación.
-   - Separa cada párrafo con una línea en blanco; los hashtags van en una línea aparte.
-   - No inventes datos que no estén en la noticia. No incluyas el enlace en el texto: \
-se adjunta aparte.
-3. Devuelve el número de la noticia elegida, el post y un titular corto para la tarjeta del enlace."""
+1. Elige entre {MIN_NOTICIAS} y {MAX_NOTICIAS} noticias, variadas: nuevos modelos y \
+lanzamientos, avances técnicos (arquitecturas, entrenamiento, benchmarks, herramientas para \
+desarrolladores, código abierto), investigación, negocio y regulación. Da prioridad a modelos y \
+contenido técnico. Evita rumores, contenido promocional y noticias menores, y no repitas la \
+misma noticia aunque venga de varias fuentes.
+2. Ordénalas de más a menos importante. Para cada una, copia su título original exactamente \
+como aparece en la lista, y da su categoría, un titular \
+corto en español y una explicación de 1 o 2 frases: qué es y por qué importa. En las técnicas, \
+incluye el detalle concreto (cifras, tamaño del modelo, técnica usada) si aparece en la noticia.
+3. Escribe también:
+   - una introducción de una o dos líneas que enganche, resumiendo lo más destacado del día;
+   - un cierre breve con tu reflexión y una pregunta para generar conversación;
+   - entre 3 y 5 hashtags.
+Todo en español, sin markdown (LinkedIn no lo muestra) y sin enlaces: se añaden aparte. \
+No inventes datos que no estén en las noticias. El post completo, con los enlaces, no puede \
+pasar de {MAX_CARACTERES} caracteres, así que sé conciso."""
+
+EMOJIS = {
+    "modelos": "🧠",
+    "técnico": "⚙️",
+    "investigación": "🔬",
+    "herramientas": "🛠️",
+    "negocio": "💼",
+    "regulación": "⚖️",
+}
 
 
-class Post(BaseModel):
-    indice_noticia: int
-    texto: str
+class Noticia(BaseModel):
+    titulo_original: str
+    categoria: Literal["modelos", "técnico", "investigación", "herramientas", "negocio", "regulación"]
     titular: str
+    explicacion: str
+
+
+class Resumen(BaseModel):
+    introduccion: str
+    noticias: list[Noticia]
+    cierre: str
+    hashtags: list[str]
 
 
 def cargar_historial() -> list[str]:
@@ -110,10 +144,11 @@ def buscar_noticias(ya_publicadas: set[str]) -> list[dict]:
     return noticias[:MAX_CANDIDATAS]
 
 
-def redactar_post(noticias: list[dict]) -> Post:
+def redactar_post(noticias: list[dict]) -> tuple[str, list[str]]:
+    """Devuelve el texto del post y los enlaces de las noticias incluidas."""
     lista = "\n\n".join(
-        f"[{i}] {n['titulo']}\nFuente: {n['fuente']} · {n['fecha']:%Y-%m-%d}\n{n['resumen']}"
-        for i, n in enumerate(noticias)
+        f"Título: {n['titulo']}\nFuente: {n['fuente']} · {n['fecha']:%Y-%m-%d}\n{n['resumen']}"
+        for n in noticias
     )
     cliente = genai.Client()  # lee GEMINI_API_KEY del entorno
     respuesta = cliente.models.generate_content(
@@ -122,15 +157,39 @@ def redactar_post(noticias: list[dict]) -> Post:
         config=types.GenerateContentConfig(
             system_instruction=INSTRUCCIONES,
             response_mime_type="application/json",
-            response_schema=Post,
+            response_schema=Resumen,
         ),
     )
-    post = respuesta.parsed
-    if not isinstance(post, Post):
+    resumen = respuesta.parsed
+    if not isinstance(resumen, Resumen):
         raise RuntimeError(f"Gemini no generó el post: {respuesta.text!r}")
-    if not 0 <= post.indice_noticia < len(noticias):
-        raise RuntimeError(f"Índice de noticia fuera de rango: {post.indice_noticia}")
-    return post
+
+    # Cada noticia elegida se busca por su título en la lista original, y el enlace se
+    # toma de ahí: así nunca sale un enlace alterado ni asignado a otra noticia.
+    titulos = [n["titulo"] for n in noticias]
+    elegidas, vistas = [], set()
+    for n in resumen.noticias:
+        parecidos = difflib.get_close_matches(n.titulo_original, titulos, n=1, cutoff=0.8)
+        if not parecidos:
+            print(f"  ! Descartada, no se encontró en la lista: {n.titulo_original!r}", file=sys.stderr)
+            continue
+        original = noticias[titulos.index(parecidos[0])]
+        if original["enlace"] not in vistas:
+            vistas.add(original["enlace"])
+            elegidas.append((n, original))
+    elegidas = elegidas[:MAX_NOTICIAS]
+    if not elegidas:
+        raise RuntimeError("Gemini no eligió ninguna noticia válida")
+
+    bloques = [
+        f"{EMOJIS[n.categoria]} {n.titular}\n{n.explicacion}\n🔗 {original['enlace']}"
+        for n, original in elegidas
+    ]
+    hashtags = " ".join("#" + h.lstrip("#").replace(" ", "") for h in resumen.hashtags)
+    texto = "\n\n".join([resumen.introduccion, *bloques, resumen.cierre, hashtags])
+    if len(texto) > MAX_CARACTERES:
+        raise RuntimeError(f"El post tiene {len(texto)} caracteres y LinkedIn admite {MAX_CARACTERES}")
+    return texto, [original["enlace"] for _, original in elegidas]
 
 
 def main() -> int:
@@ -150,7 +209,7 @@ def main() -> int:
 
     print("Redactando el post con Gemini...")
     try:
-        post = redactar_post(noticias)
+        texto, enlaces = redactar_post(noticias)
     except errors.ClientError as e:
         if e.code in (401, 403):
             print("Error: GEMINI_API_KEY no es válida. Revisa tu archivo .env.", file=sys.stderr)
@@ -161,10 +220,8 @@ def main() -> int:
         print(f"Error al redactar: {e}", file=sys.stderr)
         return 1
 
-    noticia = noticias[post.indice_noticia]
     print("\n" + "─" * 60)
-    print(post.texto)
-    print(f"\n🔗 {noticia['enlace']}")
+    print(texto)
     print("─" * 60 + "\n")
 
     if args.prueba:
@@ -173,12 +230,12 @@ def main() -> int:
 
     print("Publicando en LinkedIn...")
     try:
-        id_post = linkedin.publicar(post.texto, noticia["enlace"], post.titular)
+        id_post = linkedin.publicar(texto)
     except linkedin.ErrorLinkedIn as e:
         print(f"Error de LinkedIn: {e}", file=sys.stderr)
         return 1
 
-    guardar_historial(historial + [noticia["enlace"]])
+    guardar_historial(historial + enlaces)
     print(f"¡Publicado! {id_post}")
     return 0
 

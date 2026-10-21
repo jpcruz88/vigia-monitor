@@ -39,8 +39,8 @@ def id_miembro(token: str) -> str:
     return r.json()["sub"]
 
 
-def publicar(texto: str, enlace: str, titular: str) -> str:
-    """Publica el post con el enlace adjunto como tarjeta. Devuelve el URN del post."""
+def publicar(texto: str) -> str:
+    """Publica el post en tu perfil. Devuelve el URN del post."""
     token = _token()
     autor = os.environ.get("LINKEDIN_PERSON_ID") or id_miembro(token)
     cuerpo = {
@@ -52,7 +52,6 @@ def publicar(texto: str, enlace: str, titular: str) -> str:
             "targetEntities": [],
             "thirdPartyDistributionChannels": [],
         },
-        "content": {"article": {"source": enlace, "title": titular}},
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False,
     }

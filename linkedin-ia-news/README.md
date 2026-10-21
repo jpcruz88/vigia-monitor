@@ -1,8 +1,9 @@
 # Noticias de IA → LinkedIn
 
-Busca las noticias de inteligencia artificial de las últimas 48 horas, Gemini elige
-la más relevante y escribe un post en español, y lo publica en tu perfil de LinkedIn
-con el enlace a la noticia.
+Busca las noticias de inteligencia artificial de las últimas 48 horas en 13 fuentes
+(actualidad, laboratorios de IA y blogs técnicos), Gemini elige entre 5 y 8 de las
+más importantes y escribe un resumen en español, y lo publica en tu perfil de LinkedIn.
+Da prioridad a nuevos modelos y noticias técnicas; cada noticia lleva su enlace.
 
 Se ejecuta **solo, todos los días**, con GitHub Actions. También puedes lanzarlo a mano:
 
@@ -87,6 +88,7 @@ En `publicar.py`:
 - **`FUENTES`**: los feeds RSS de donde saca las noticias.
 - **`INSTRUCCIONES`**: el tono, la longitud y el estilo del post.
 - **`HORAS_ATRAS`**: cuánto tiempo atrás buscar noticias.
+- **`MIN_NOTICIAS`, `MAX_NOTICIAS`**: cuántas noticias lleva cada post.
 - **`MODELO_POR_DEFECTO`**: el modelo de Gemini (o `GEMINI_MODEL` en el `.env`).
 
 ## Problemas frecuentes
