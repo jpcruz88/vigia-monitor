@@ -56,6 +56,7 @@ contenido promocional y noticias menores.
    - Una opinión o reflexión breve y una pregunta final para generar conversación.
    - Entre 3 y 5 hashtags al final.
    - Máximo 1.300 caracteres. Sin markdown (LinkedIn no lo muestra). Emojis con moderación.
+   - Separa cada párrafo con una línea en blanco; los hashtags van en una línea aparte.
    - No inventes datos que no estén en la noticia. No incluyas el enlace en el texto: \
 se adjunta aparte.
 3. Devuelve el número de la noticia elegida, el post y un titular corto para la tarjeta del enlace."""
